@@ -161,6 +161,15 @@ class _PackageDetailsScreenState extends ConsumerState<PackageDetailsScreen> {
                     const SizedBox(height: 16),
                     SizedBox(
                       width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () => context.go('/package/${item.id}/customize'),
+                        icon: const Icon(Icons.tune),
+                        label: const Text('Customize menu'),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
                       child: FilledButton.icon(
                         onPressed: () {
                           ref.read(cartControllerProvider.notifier).addPackage(item, guests: guests);

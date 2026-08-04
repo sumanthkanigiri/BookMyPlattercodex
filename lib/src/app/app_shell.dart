@@ -54,12 +54,12 @@ class BookMyPlatterShell extends ConsumerWidget {
               count: activeOrders,
               child: Icon(Icons.receipt_long_rounded, color: scheme.primary),
             ),
-            label: 'Orders',
+            label: 'Bookings',
           ),
           const NavigationDestination(
             icon: Icon(Icons.favorite_border_rounded),
             selectedIcon: Icon(Icons.favorite_rounded),
-            label: 'Favorites',
+            label: 'Wishlist',
           ),
           NavigationDestination(
             icon: _ShellBadge(

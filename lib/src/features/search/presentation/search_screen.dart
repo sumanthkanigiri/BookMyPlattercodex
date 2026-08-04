@@ -58,6 +58,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     final packages = ref.watch(packagesProvider(filters));
+    final recentSearches = ref.watch(recentSearchesProvider).valueOrNull ?? const <String>[];
+    final popularSearches = ref.watch(popularSearchesProvider).valueOrNull ?? const <String>[];
     return Scaffold(
       appBar: AppBar(
         title: const Text('Find a package'),
@@ -106,6 +108,19 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               onChanged: updateSearch,
             ),
           ),
+          if (query.isEmpty && (recentSearches.isNotEmpty || popularSearches.isNotEmpty))
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: _SearchMemory(
+                recent: recentSearches,
+                popular: popularSearches,
+                onSelected: (value) {
+                  searchController.text = value;
+                  setState(() => query = value);
+                  ref.read(customerActivityRepositoryProvider).search(value);
+                },
+              ),
+            ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
@@ -270,5 +285,31 @@ class _FiltersSheetState extends State<_FiltersSheet> {
             ),
           ),
         ),
+      );
+}
+
+
+class _SearchMemory extends StatelessWidget {
+  const _SearchMemory({required this.recent, required this.popular, required this.onSelected});
+  final List<String> recent;
+  final List<String> popular;
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (recent.isNotEmpty) ...[
+            Text('Recent searches', style: Theme.of(context).textTheme.labelLarge),
+            const SizedBox(height: 6),
+            Wrap(spacing: 8, children: [for (final item in recent.take(6)) ActionChip(label: Text(item), onPressed: () => onSelected(item))]),
+            const SizedBox(height: 10),
+          ],
+          if (popular.isNotEmpty) ...[
+            Text('Popular searches', style: Theme.of(context).textTheme.labelLarge),
+            const SizedBox(height: 6),
+            Wrap(spacing: 8, children: [for (final item in popular.take(8)) ActionChip(label: Text(item), onPressed: () => onSelected(item))]),
+          ],
+        ],
       );
 }

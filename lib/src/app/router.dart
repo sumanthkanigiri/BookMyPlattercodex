@@ -9,6 +9,7 @@ import 'package:bookmyplatter/src/features/favorites/presentation/favorites_scre
 import 'package:bookmyplatter/src/features/events/presentation/customer_events_screen.dart';
 import 'package:bookmyplatter/src/features/home/presentation/home_screen.dart';
 import 'package:bookmyplatter/src/features/loyalty/presentation/loyalty_screen.dart';
+import 'package:bookmyplatter/src/features/menu_customization/presentation/custom_menu_builder_screen.dart';
 import 'package:bookmyplatter/src/features/orders/presentation/orders_screen.dart';
 import 'package:bookmyplatter/src/features/notifications/presentation/notifications_screen.dart';
 import 'package:bookmyplatter/src/features/orders/presentation/order_details_screen.dart';
@@ -91,6 +92,12 @@ final appRouter = GoRouter(
       path: '/package/:id',
       builder: (context, state) => PackageDetailsScreen(
         packageId: state.pathParameters['id'] ?? 'featured',
+      ),
+    ),
+    GoRoute(
+      path: '/package/:id/customize',
+      builder: (context, state) => CustomMenuBuilderScreen(
+        packageId: state.pathParameters['id']!,
       ),
     ),
     GoRoute(path: '/cart', builder: (context, state) => const CartScreen()),

@@ -39,6 +39,14 @@ final searchSuggestionsProvider =
   return ref.watch(catalogRepositoryProvider).searchSuggestions(query);
 });
 
+final recentSearchesProvider = FutureProvider<List<String>>((ref) {
+  return ref.watch(catalogRepositoryProvider).recentSearches();
+});
+
+final popularSearchesProvider = FutureProvider<List<String>>((ref) {
+  return ref.watch(catalogRepositoryProvider).popularSearches();
+});
+
 final customerReviewHighlightsProvider = FutureProvider<List<CustomerReviewHighlight>>((ref) {
   return ref.watch(catalogRepositoryProvider).customerReviewHighlights();
 });
@@ -285,6 +293,39 @@ class CatalogRepository {
           route: '/search?category=${row['id']}',
           icon: row['icon'] as String? ?? '🍱',
         ),
+    ];
+  }
+
+  Future<List<String>> recentSearches() async {
+    final customerId = _client.auth.currentUser?.id;
+    if (customerId == null) return const [];
+    final rows = await _client
+        .from('customer_activity')
+        .select('search_query')
+        .eq('customer_id', customerId)
+        .eq('activity_type', 'search')
+        .neq('search_query', '')
+        .order('occurred_at', ascending: false)
+        .limit(12);
+    final seen = <String>{};
+    return [
+      for (final row in rows)
+        if (seen.add((row['search_query'] as String).trim()))
+          (row['search_query'] as String).trim(),
+    ];
+  }
+
+  Future<List<String>> popularSearches() async {
+    final rows = await _client
+        .from('marketplace_content_items')
+        .select('title,search_query')
+        .eq('collection_key', 'popular_searches')
+        .eq('is_active', true)
+        .order('sort_order')
+        .limit(12);
+    return [
+      for (final row in rows)
+        ((row['search_query'] as String?) ?? (row['title'] as String)).trim(),
     ];
   }
 
