@@ -22,6 +22,30 @@ final orderProvider = FutureProvider.family<PlatterOrder, String>((ref, id) {
   return ref.watch(orderRepositoryProvider).fetchById(id);
 });
 
+class CustomerDeliveryTracking {
+  const CustomerDeliveryTracking({required this.status, this.latitude, this.longitude, this.estimatedArrival, this.deliveredAt});
+  factory CustomerDeliveryTracking.fromMap(Map<String, dynamic> map) => CustomerDeliveryTracking(
+        status: map['status'] as String,
+        latitude: (map['current_latitude'] as num?)?.toDouble(),
+        longitude: (map['current_longitude'] as num?)?.toDouble(),
+        estimatedArrival: map['estimated_arrival_at'] == null ? null : DateTime.parse(map['estimated_arrival_at'] as String).toLocal(),
+        deliveredAt: map['delivered_at'] == null ? null : DateTime.parse(map['delivered_at'] as String).toLocal(),
+      );
+  final String status;
+  final double? latitude;
+  final double? longitude;
+  final DateTime? estimatedArrival;
+  final DateTime? deliveredAt;
+}
+
+final deliveryTrackingProvider = StreamProvider.autoDispose.family<CustomerDeliveryTracking?, String>((ref, orderId) async* {
+  final repository = ref.watch(orderRepositoryProvider);
+  while (true) {
+    yield await repository.deliveryTracking(orderId);
+    await Future<void>.delayed(const Duration(seconds: 20));
+  }
+});
+
 class OrderRepository {
   const OrderRepository(this._client);
 
@@ -50,6 +74,12 @@ class OrderRepository {
         .eq('customer_id', _customerId)
         .single();
     return PlatterOrder.fromMap(row);
+  }
+
+  Future<CustomerDeliveryTracking?> deliveryTracking(String orderId) async {
+    final rows = await _client.rpc<List<dynamic>>('customer_delivery_tracking', params: {'p_order_id': orderId});
+    if (rows.isEmpty) return null;
+    return CustomerDeliveryTracking.fromMap(Map<String, dynamic>.from(rows.first as Map));
   }
 
   Future<List<String>> place({

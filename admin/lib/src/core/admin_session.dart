@@ -18,7 +18,7 @@ final adminIdentityProvider = StreamProvider<AdminIdentity?>((ref) async* {
     if (user == null) return null;
     final profile = await client.from('profiles').select('full_name,role').eq('id', user.id).single();
     final role = profile['role'] as String;
-    if (role != 'admin' && role != 'support') {
+    if (!const {'admin', 'support', 'kitchen', 'delivery_partner'}.contains(role)) {
       await client.auth.signOut();
       throw StateError('This account is not authorized for administration');
     }
@@ -40,7 +40,7 @@ class AdminAuthRepository {
     final user = client.auth.currentUser;
     if (user == null) throw const AuthException('Authentication failed');
     final profile = await client.from('profiles').select('role').eq('id', user.id).single();
-    if (!const {'admin', 'support'}.contains(profile['role'])) {
+    if (!const {'admin', 'support', 'kitchen', 'delivery_partner'}.contains(profile['role'])) {
       await client.auth.signOut();
       throw const AuthException('This account is not authorized for administration');
     }

@@ -81,6 +81,10 @@ class OrderDetailsScreen extends ConsumerWidget {
               Text('Live tracking', style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 8),
               _TrackingTimeline(order: item),
+              if (item.status == 'out_for_delivery' || item.status == 'arrived_at_venue') ...[
+                const SizedBox(height: 12),
+                _LiveDeliveryCard(orderId: item.id, address: item.deliveryAddress),
+              ],
               const SizedBox(height: 16),
               Row(
                 children: [
@@ -184,6 +188,28 @@ class OrderDetailsScreen extends ConsumerWidget {
     ));
     return document.save();
   }
+}
+
+class _LiveDeliveryCard extends ConsumerWidget {
+  const _LiveDeliveryCard({required this.orderId, required this.address});
+  final String orderId;
+  final String address;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => ref.watch(deliveryTrackingProvider(orderId)).when(
+        loading: () => const Card(child: ListTile(leading: CircularProgressIndicator(), title: Text('Locating your delivery team…'))),
+        error: (error, _) => Card(child: ListTile(leading: const Icon(Icons.location_off_outlined), title: const Text('Live location is temporarily unavailable'), trailing: IconButton(onPressed: () => ref.invalidate(deliveryTrackingProvider(orderId)), icon: const Icon(Icons.refresh)))),
+        data: (tracking) {
+          if (tracking == null) return const SizedBox.shrink();
+          final hasCoordinates = tracking.latitude != null && tracking.longitude != null;
+          final query = hasCoordinates ? '${tracking.latitude},${tracking.longitude}' : address;
+          return Card(child: ListTile(
+            leading: const CircleAvatar(child: Icon(Icons.delivery_dining)),
+            title: Text(tracking.status.replaceAll('_', ' ')),
+            subtitle: Text(tracking.estimatedArrival == null ? 'The delivery team will update the arrival time shortly' : 'Estimated arrival ${DateFormat('d MMM, h:mm a').format(tracking.estimatedArrival!)}'),
+            trailing: IconButton(tooltip: 'View live route', onPressed: () => launchUrl(Uri.https('www.google.com', '/maps/search/', {'api': '1', 'query': query}), mode: LaunchMode.externalApplication), icon: const Icon(Icons.map_outlined)),
+          ));
+        },
+      );
 }
 
 class _SuccessHeader extends StatelessWidget {
