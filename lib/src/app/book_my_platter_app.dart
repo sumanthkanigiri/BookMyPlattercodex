@@ -11,6 +11,8 @@ class BookMyPlatterApp extends StatelessWidget {
       title: 'BookMyPlatter',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      themeMode: ThemeMode.system,
       routerConfig: appRouter,
     );
   }

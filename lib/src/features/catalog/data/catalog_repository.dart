@@ -28,6 +28,21 @@ final recentlyViewedPackagesProvider = FutureProvider<List<CateringPackage>>((re
   return ref.watch(catalogRepositoryProvider).recentlyViewed();
 });
 
+
+final marketplaceCollectionProvider =
+    FutureProvider.family<List<MarketplaceContentItem>, String>((ref, key) {
+  return ref.watch(catalogRepositoryProvider).marketplaceCollection(key);
+});
+
+final searchSuggestionsProvider =
+    FutureProvider.family<List<SearchSuggestion>, String>((ref, query) {
+  return ref.watch(catalogRepositoryProvider).searchSuggestions(query);
+});
+
+final customerReviewHighlightsProvider = FutureProvider<List<CustomerReviewHighlight>>((ref) {
+  return ref.watch(catalogRepositoryProvider).customerReviewHighlights();
+});
+
 class PackageQuery {
   const PackageQuery({
     this.search = '',
@@ -78,6 +93,77 @@ class HeroBanner {
   final String title;
   final String subtitle;
   final String? imageUrl;
+}
+
+
+class MarketplaceContentItem {
+  const MarketplaceContentItem({
+    required this.id,
+    required this.collectionKey,
+    required this.title,
+    required this.sortOrder,
+    this.subtitle = '',
+    this.icon = '🍽️',
+    this.route,
+    this.searchQuery,
+    this.imageUrl,
+  });
+
+  factory MarketplaceContentItem.fromMap(Map<String, dynamic> map) {
+    return MarketplaceContentItem(
+      id: map['id'] as String,
+      collectionKey: map['collection_key'] as String,
+      title: map['title'] as String,
+      subtitle: map['subtitle'] as String? ?? '',
+      icon: map['icon'] as String? ?? '🍽️',
+      route: map['route'] as String?,
+      searchQuery: map['search_query'] as String?,
+      imageUrl: map['image_url'] as String?,
+      sortOrder: map['sort_order'] as int? ?? 0,
+    );
+  }
+
+  final String id;
+  final String collectionKey;
+  final String title;
+  final String subtitle;
+  final String icon;
+  final String? route;
+  final String? searchQuery;
+  final String? imageUrl;
+  final int sortOrder;
+}
+
+class SearchSuggestion {
+  const SearchSuggestion({required this.label, required this.route, required this.icon});
+
+  final String label;
+  final String route;
+  final String icon;
+}
+
+class CustomerReviewHighlight {
+  const CustomerReviewHighlight({
+    required this.id,
+    required this.packageName,
+    required this.rating,
+    required this.comment,
+  });
+
+  factory CustomerReviewHighlight.fromMap(Map<String, dynamic> map) {
+    final package = map['packages'] as Map<String, dynamic>?;
+    return CustomerReviewHighlight(
+      id: map['id'] as String,
+      packageName: package?['name'] as String? ?? 'Booked package',
+      rating: (map['rating'] as num).toDouble(),
+      comment: map['comment'] as String? ?? '',
+    );
+  }
+
+  final String id;
+  final String packageName;
+  final double rating;
+  final String comment;
 }
 
 class CatalogRepository {
@@ -158,4 +244,58 @@ class CatalogRepository {
         CateringPackage.fromMap(row['packages'] as Map<String, dynamic>),
     ];
   }
+
+  Future<List<MarketplaceContentItem>> marketplaceCollection(String key) async {
+    final rows = await _client
+        .from('marketplace_content_items')
+        .select('id,collection_key,title,subtitle,icon,route,search_query,image_url,sort_order')
+        .eq('collection_key', key)
+        .eq('is_active', true)
+        .order('sort_order')
+        .limit(50);
+    return [for (final row in rows) MarketplaceContentItem.fromMap(row)];
+  }
+
+  Future<List<SearchSuggestion>> searchSuggestions(String query) async {
+    final normalized = query.trim();
+    if (normalized.length < 2) return const [];
+    final encoded = '%$normalized%';
+    final packageRows = await _client
+        .from('packages')
+        .select('id,name')
+        .eq('is_active', true)
+        .ilike('name', encoded)
+        .limit(5);
+    final categoryRows = await _client
+        .from('categories')
+        .select('id,name,icon')
+        .eq('is_active', true)
+        .ilike('name', encoded)
+        .limit(5);
+    return [
+      for (final row in packageRows)
+        SearchSuggestion(
+          label: row['name'] as String,
+          route: '/package/${row['id']}',
+          icon: '🍽️',
+        ),
+      for (final row in categoryRows)
+        SearchSuggestion(
+          label: row['name'] as String,
+          route: '/search?category=${row['id']}',
+          icon: row['icon'] as String? ?? '🍱',
+        ),
+    ];
+  }
+
+  Future<List<CustomerReviewHighlight>> customerReviewHighlights() async {
+    final rows = await _client
+        .from('reviews')
+        .select('id,rating,comment,packages(name)')
+        .not('comment', 'is', null)
+        .order('created_at', ascending: false)
+        .limit(12);
+    return [for (final row in rows) CustomerReviewHighlight.fromMap(row)];
+  }
+
 }

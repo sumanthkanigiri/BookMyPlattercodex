@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'package:bookmyplatter/src/features/address/application/address_controller.dart';
+import 'package:bookmyplatter/src/features/address/domain/address.dart';
 import 'package:bookmyplatter/src/features/assistant/application/catering_assistant_controller.dart';
 import 'package:bookmyplatter/src/features/auth/data/auth_repository.dart';
 import 'package:bookmyplatter/src/features/cart/application/cart_controller.dart';
@@ -57,7 +59,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ..invalidate(packagesProvider)
       ..invalidate(recentlyViewedPackagesProvider)
       ..invalidate(favoritesControllerProvider)
-      ..invalidate(notificationControllerProvider);
+      ..invalidate(notificationControllerProvider)
+      ..invalidate(marketplaceCollectionProvider)
+      ..invalidate(customerReviewHighlightsProvider);
     await Future.wait([
       ref.read(categoriesProvider.future),
       ref.read(bannersProvider.future),
@@ -87,14 +91,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final user = ref.watch(authRepositoryProvider).currentUser;
     final notifications = ref.watch(unreadNotificationCountProvider);
     final cartCount = ref.watch(cartControllerProvider).length;
+    final addresses = ref.watch(addressControllerProvider).valueOrNull;
     final firstName = _firstName(user?.userMetadata?['full_name'] as String?);
+    final occasions = ref.watch(marketplaceCollectionProvider('occasions'));
+    final popularMenus = ref.watch(marketplaceCollectionProvider('popular_menus'));
+    final trustItems = ref.watch(marketplaceCollectionProvider('why_bookmyplatter'));
+    final planningTips = ref.watch(marketplaceCollectionProvider('planning_tips'));
+    final faqs = ref.watch(marketplaceCollectionProvider('faqs'));
+    final reviewHighlights = ref.watch(customerReviewHighlightsProvider);
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: _MarketplaceAppBar(
         firstName: firstName,
         unreadCount: notifications,
         cartCount: cartCount,
+        locationLabel: _locationLabel(addresses),
       ),
       body: RefreshIndicator(
         onRefresh: _refresh,
@@ -120,7 +132,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         const SizedBox(height: 24),
                         _QuickCategories(categories: categories),
                         const SizedBox(height: 28),
-                        _OccasionCards(),
+                        _OccasionCards(items: occasions),
                         const SizedBox(height: 28),
                         _AsyncPackageSection(
                           title: 'Featured packages',
@@ -133,7 +145,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         const SizedBox(height: 28),
                         _TrendingCaterers(packages: featured),
                         const SizedBox(height: 28),
-                        _PopularMenus(),
+                        _PopularMenus(items: popularMenus),
                         const SizedBox(height: 28),
                         _HorizontalPackageSection(
                           title: 'Platter Box specials',
@@ -169,17 +181,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         const SizedBox(height: 28),
                         _NearbyCaterers(packages: featured),
                         const SizedBox(height: 28),
-                        _ReviewsCarousel(packages: topRated),
+                        _ReviewsCarousel(reviews: reviewHighlights),
                         const SizedBox(height: 28),
-                        const _WhyBookMyPlatter(),
+                        _WhyBookMyPlatter(items: trustItems),
                         const SizedBox(height: 28),
                         const _DownloadAppBanner(),
                         const SizedBox(height: 18),
                         const _ReferralBanner(),
                         const SizedBox(height: 28),
-                        const _BlogAndTips(),
+                        _BlogAndTips(items: planningTips),
                         const SizedBox(height: 28),
-                        const _Faqs(),
+                        _Faqs(items: faqs),
                         const SizedBox(height: 28),
                         const _ContactSupport(),
                       ],
@@ -210,6 +222,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ],
       ),
     );
+  }
+
+  String _locationLabel(List<Address>? addresses) {
+    Address? selected;
+    if (addresses != null && addresses.isNotEmpty) {
+      for (final address in addresses) {
+        if (address.isDefault) {
+          selected = address;
+          break;
+        }
+      }
+      selected ??= addresses.first;
+    }
+    if (selected == null) return 'Select event location';
+    return selected.label.isNotEmpty ? selected.label : selected.line1;
   }
 
   String? _firstName(String? fullName) {
@@ -255,11 +282,13 @@ class _MarketplaceAppBar extends StatelessWidget implements PreferredSizeWidget 
     required this.firstName,
     required this.unreadCount,
     required this.cartCount,
+    required this.locationLabel,
   });
 
   final String? firstName;
   final int unreadCount;
   final int cartCount;
+  final String locationLabel;
 
   @override
   Size get preferredSize => const Size.fromHeight(116);
@@ -267,9 +296,9 @@ class _MarketplaceAppBar extends StatelessWidget implements PreferredSizeWidget 
   @override
   Widget build(BuildContext context) {
     return AppBar(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       foregroundColor: _purple,
-      surfaceTintColor: Colors.white,
+      surfaceTintColor: Theme.of(context).colorScheme.surface,
       elevation: 0,
       flexibleSpace: SafeArea(
         child: Padding(
@@ -282,23 +311,23 @@ class _MarketplaceAppBar extends StatelessWidget implements PreferredSizeWidget 
                     child: InkWell(
                       borderRadius: BorderRadius.circular(18),
                       onTap: () => context.go('/addresses'),
-                      child: const Row(
+                      child: Row(
                         children: [
-                          CircleAvatar(
+                          const CircleAvatar(
                             backgroundColor: _softPurple,
                             child: Icon(Icons.location_on_rounded, color: _purple),
                           ),
-                          SizedBox(width: 10),
+                          const SizedBox(width: 10),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
+                                const Text(
                                   'Delivering to',
                                   style: TextStyle(fontSize: 12, color: Colors.black54),
                                 ),
                                 Text(
-                                  'Select event location',
+                                  locationLabel,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
@@ -309,7 +338,7 @@ class _MarketplaceAppBar extends StatelessWidget implements PreferredSizeWidget 
                               ],
                             ),
                           ),
-                          Icon(Icons.keyboard_arrow_down_rounded),
+                          const Icon(Icons.keyboard_arrow_down_rounded),
                         ],
                       ),
                     ),
@@ -335,16 +364,82 @@ class _MarketplaceAppBar extends StatelessWidget implements PreferredSizeWidget 
                 ],
               ),
               const SizedBox(height: 10),
-              SearchBar(
-                hintText: 'Search caterers, menus, occasions',
-                leading: const Icon(Icons.search_rounded),
-                trailing: const [Icon(Icons.tune_rounded)],
-                onTap: () => context.go('/search'),
-              ),
+              const _LiveSearchBar(),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+class _LiveSearchBar extends ConsumerStatefulWidget {
+  const _LiveSearchBar();
+
+  @override
+  ConsumerState<_LiveSearchBar> createState() => _LiveSearchBarState();
+}
+
+class _LiveSearchBarState extends ConsumerState<_LiveSearchBar> {
+  final controller = SearchController();
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SearchAnchor(
+      searchController: controller,
+      builder: (context, controller) {
+        return SearchBar(
+          controller: controller,
+          hintText: 'Search caterers, menus, occasions',
+          leading: const Icon(Icons.search_rounded),
+          trailing: const [Icon(Icons.tune_rounded)],
+          onTap: controller.openView,
+          onChanged: (_) => controller.openView(),
+          onSubmitted: (value) => context.go('/search?q=${Uri.encodeComponent(value)}'),
+        );
+      },
+      suggestionsBuilder: (context, controller) {
+        final query = controller.text.trim();
+        final suggestions = ref.watch(searchSuggestionsProvider(query));
+        return suggestions.when(
+          loading: () => const [
+            ListTile(leading: SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2)), title: Text('Searching live marketplace...')),
+          ],
+          error: (_, __) => const [
+            ListTile(leading: Icon(Icons.error_outline), title: Text('Suggestions unavailable')),
+          ],
+          data: (items) {
+            if (query.length < 2) {
+              return const [
+                ListTile(leading: Icon(Icons.search_rounded), title: Text('Type at least 2 characters')),
+              ];
+            }
+            if (items.isEmpty) {
+              return [
+                ListTile(
+                  leading: const Icon(Icons.manage_search_rounded),
+                  title: Text('Search for "$query"'),
+                  onTap: () => context.go('/search?q=${Uri.encodeComponent(query)}'),
+                ),
+              ];
+            }
+            return [
+              for (final item in items)
+                ListTile(
+                  leading: Text(item.icon),
+                  title: Text(item.label),
+                  onTap: () => context.go(item.route),
+                ),
+            ];
+          },
+        );
+      },
     );
   }
 }
@@ -617,7 +712,14 @@ class _QuickCategories extends StatelessWidget {
         loading: () => const _HorizontalSkeleton(height: 74),
         error: (_, __) => const _InlineError(message: 'Unable to load categories'),
         data: (items) {
-          final chips = items.isEmpty ? _defaultCategories : items;
+          if (items.isEmpty) {
+            return const _EmptyLiveData(
+              icon: Icons.category_outlined,
+              title: 'Categories are being configured',
+              message: 'Pull to refresh after active categories are published.',
+            );
+          }
+          final chips = items;
           return SizedBox(
             height: 78,
             child: ListView.separated(
@@ -665,21 +767,34 @@ class _CategoryPill extends StatelessWidget {
 }
 
 class _OccasionCards extends StatelessWidget {
-  const _OccasionCards();
+  const _OccasionCards({required this.items});
+
+  final AsyncValue<List<MarketplaceContentItem>> items;
 
   @override
   Widget build(BuildContext context) {
     return _SectionShell(
       title: 'Shop by occasion',
       subtitle: 'Menus tuned for your event format',
-      child: LayoutBuilder(
+      child: items.when(
+        loading: () => const _HorizontalSkeleton(height: 180),
+        error: (_, __) => const _InlineError(message: 'Unable to load occasions'),
+        data: (liveItems) {
+          if (liveItems.isEmpty) {
+            return const _EmptyLiveData(
+              icon: Icons.celebration_outlined,
+              title: 'Occasions are being configured',
+              message: 'Publish marketplace occasion content in Supabase.',
+            );
+          }
+          return LayoutBuilder(
         builder: (context, constraints) {
           final width = constraints.maxWidth;
           final columns = width > 900 ? 5 : width > 620 ? 4 : 3;
           return GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            itemCount: _occasions.length,
+            itemCount: liveItems.length,
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: columns,
               crossAxisSpacing: 10,
@@ -687,12 +802,14 @@ class _OccasionCards extends StatelessWidget {
               childAspectRatio: width > 620 ? 1.9 : 1.18,
             ),
             itemBuilder: (context, index) {
-              final occasion = _occasions[index];
+              final occasion = liveItems[index];
               return _AnimatedIn(
                 delay: Duration(milliseconds: 35 * index),
                 child: _OccasionTile(occasion: occasion),
               );
             },
+          );
+        },
           );
         },
       ),
@@ -703,7 +820,7 @@ class _OccasionCards extends StatelessWidget {
 class _OccasionTile extends StatelessWidget {
   const _OccasionTile({required this.occasion});
 
-  final _HomeTaxonomy occasion;
+  final MarketplaceContentItem occasion;
 
   @override
   Widget build(BuildContext context) {
@@ -713,7 +830,7 @@ class _OccasionTile extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
       child: InkWell(
         borderRadius: BorderRadius.circular(22),
-        onTap: () => context.go('/search?q=${Uri.encodeComponent(occasion.label)}'),
+        onTap: () => context.go(_routeForContent(occasion)),
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Column(
@@ -722,7 +839,7 @@ class _OccasionTile extends StatelessWidget {
               Text(occasion.icon, style: const TextStyle(fontSize: 28)),
               const SizedBox(height: 8),
               Text(
-                occasion.label,
+                occasion.title,
                 textAlign: TextAlign.center,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
@@ -1147,51 +1264,67 @@ class _CatererCard extends StatelessWidget {
 }
 
 class _PopularMenus extends StatelessWidget {
-  const _PopularMenus();
+  const _PopularMenus({required this.items});
+
+  final AsyncValue<List<MarketplaceContentItem>> items;
 
   @override
   Widget build(BuildContext context) {
     return _SectionShell(
       title: 'Popular menus',
       subtitle: 'Regional and international favorites',
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final columns = constraints.maxWidth > 900 ? 4 : constraints.maxWidth > 620 ? 3 : 2;
-          return GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: _menus.length,
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: columns,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 1.45,
-            ),
-            itemBuilder: (context, index) {
-              final menu = _menus[index];
-              return Card(
-                elevation: 0,
-                color: index.isEven ? _softPurple : _surfaceGold,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(22),
-                  onTap: () => context.go('/search?q=${Uri.encodeComponent(menu.label)}'),
-                  child: Padding(
-                    padding: const EdgeInsets.all(14),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        Text(menu.icon, style: const TextStyle(fontSize: 30)),
-                        const SizedBox(height: 10),
-                        Text(
-                          menu.label,
-                          style: const TextStyle(fontWeight: FontWeight.w900),
-                        ),
-                      ],
-                    ),
-                  ),
+      child: items.when(
+        loading: () => const _HorizontalSkeleton(height: 160),
+        error: (_, __) => const _InlineError(message: 'Unable to load popular menus'),
+        data: (liveItems) {
+          if (liveItems.isEmpty) {
+            return const _EmptyLiveData(
+              icon: Icons.restaurant_menu_outlined,
+              title: 'Popular menus are being configured',
+              message: 'Publish popular menu entries in Supabase.',
+            );
+          }
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              final columns = constraints.maxWidth > 900
+                  ? 4
+                  : constraints.maxWidth > 620
+                      ? 3
+                      : 2;
+              return GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: liveItems.length,
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: columns,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                  childAspectRatio: 1.45,
                 ),
+                itemBuilder: (context, index) {
+                  final menu = liveItems[index];
+                  return Card(
+                    elevation: 0,
+                    color: index.isEven ? _softPurple : _surfaceGold,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(22),
+                      onTap: () => context.go(_routeForContent(menu)),
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            Text(menu.icon, style: const TextStyle(fontSize: 30)),
+                            const SizedBox(height: 10),
+                            Text(menu.title, style: const TextStyle(fontWeight: FontWeight.w900)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
               );
             },
           );
@@ -1333,37 +1466,36 @@ class _NearbyCaterers extends StatelessWidget {
 }
 
 class _ReviewsCarousel extends StatelessWidget {
-  const _ReviewsCarousel({required this.packages});
+  const _ReviewsCarousel({required this.reviews});
 
-  final AsyncValue<List<CateringPackage>> packages;
+  final AsyncValue<List<CustomerReviewHighlight>> reviews;
 
   @override
   Widget build(BuildContext context) {
     return _SectionShell(
       title: 'Customer reviews',
-      subtitle: 'Ratings from recently booked menus',
-      child: packages.when(
+      subtitle: 'Live reviews from completed bookings',
+      child: reviews.when(
         loading: () => const _HorizontalSkeleton(height: 156),
         error: (_, __) => const _InlineError(message: 'Unable to load reviews'),
         data: (items) {
-          final reviewed = items.where((item) => item.rating > 0).take(6).toList(growable: false);
-          if (reviewed.isEmpty) {
+          if (items.isEmpty) {
             return const _EmptyLiveData(
               icon: Icons.reviews_outlined,
               title: 'Reviews will appear after completed orders',
-              message: 'BookMyPlatter shows only live package ratings.',
+              message: 'BookMyPlatter shows only live customer reviews.',
             );
           }
           return SizedBox(
-            height: 166,
+            height: 176,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
-              itemCount: reviewed.length,
+              itemCount: items.length,
               separatorBuilder: (_, __) => const SizedBox(width: 12),
               itemBuilder: (context, index) {
-                final package = reviewed[index];
+                final review = items[index];
                 return SizedBox(
-                  width: 280,
+                  width: 292,
                   child: Card(
                     color: _softPurple,
                     elevation: 0,
@@ -1373,17 +1505,17 @@ class _ReviewsCarousel extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _RatingPill(rating: package.rating),
+                          _RatingPill(rating: review.rating),
                           const SizedBox(height: 12),
                           Text(
-                            package.name,
-                            maxLines: 2,
+                            review.comment,
+                            maxLines: 3,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontWeight: FontWeight.w900),
+                            style: const TextStyle(fontWeight: FontWeight.w700),
                           ),
                           const Spacer(),
                           Text(
-                            package.cuisine.isEmpty ? 'Verified package rating' : package.cuisine,
+                            review.packageName,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -1402,31 +1534,41 @@ class _ReviewsCarousel extends StatelessWidget {
 }
 
 class _WhyBookMyPlatter extends StatelessWidget {
-  const _WhyBookMyPlatter();
+  const _WhyBookMyPlatter({required this.items});
+
+  final AsyncValue<List<MarketplaceContentItem>> items;
 
   @override
   Widget build(BuildContext context) {
     return _SectionShell(
       title: 'Why BookMyPlatter',
       subtitle: 'A safer marketplace for every catered event',
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final columns = constraints.maxWidth > 700 ? 3 : 2;
-          return GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: columns,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 1.45,
-            children: const [
-              _TrustTile(Icons.verified_user_rounded, 'Verified Caterers'),
-              _TrustTile(Icons.currency_rupee_rounded, 'Best Prices'),
-              _TrustTile(Icons.flash_on_rounded, 'Instant Booking'),
-              _TrustTile(Icons.lock_rounded, 'Secure Payments'),
-              _TrustTile(Icons.workspace_premium_rounded, 'Quality Guarantee'),
-              _TrustTile(Icons.delivery_dining_rounded, 'Live Order Tracking'),
-            ],
+      child: items.when(
+        loading: () => const _HorizontalSkeleton(height: 140),
+        error: (_, __) => const _InlineError(message: 'Unable to load trust signals'),
+        data: (liveItems) {
+          if (liveItems.isEmpty) {
+            return const _EmptyLiveData(
+              icon: Icons.verified_user_outlined,
+              title: 'Trust content is being configured',
+              message: 'Publish trust badges in Supabase marketplace content.',
+            );
+          }
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              final columns = constraints.maxWidth > 700 ? 3 : 2;
+              return GridView.count(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisCount: columns,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                childAspectRatio: 1.45,
+                children: [
+                  for (final item in liveItems) _TrustTile(item.icon, item.title),
+                ],
+              );
+            },
           );
         },
       ),
@@ -1437,7 +1579,7 @@ class _WhyBookMyPlatter extends StatelessWidget {
 class _TrustTile extends StatelessWidget {
   const _TrustTile(this.icon, this.title);
 
-  final IconData icon;
+  final String icon;
   final String title;
 
   @override
@@ -1452,7 +1594,7 @@ class _TrustTile extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            Icon(icon, color: _purple),
+            Text(icon, style: const TextStyle(fontSize: 24)),
             const SizedBox(height: 12),
             Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
           ],
@@ -1551,28 +1693,38 @@ class _GradientBanner extends StatelessWidget {
 }
 
 class _BlogAndTips extends StatelessWidget {
-  const _BlogAndTips();
+  const _BlogAndTips({required this.items});
+
+  final AsyncValue<List<MarketplaceContentItem>> items;
 
   @override
   Widget build(BuildContext context) {
     return _SectionShell(
       title: 'Blog & tips',
       subtitle: 'Planning guidance for stress-free hosting',
-      child: Column(
-        children: [
-          _TipTile(
-            icon: Icons.groups_rounded,
-            title: 'How many dishes do I need?',
-            subtitle: 'Use the assistant to balance guest count, courses, and budget.',
-            onTap: () => context.go('/assistant'),
-          ),
-          _TipTile(
-            icon: Icons.event_available_rounded,
-            title: 'Book earlier for peak dates',
-            subtitle: 'Wedding and festival caterers fill quickly in popular slots.',
-            onTap: () => context.go('/search?q=wedding'),
-          ),
-        ],
+      child: items.when(
+        loading: () => const _HorizontalSkeleton(height: 132),
+        error: (_, __) => const _InlineError(message: 'Unable to load planning tips'),
+        data: (liveItems) {
+          if (liveItems.isEmpty) {
+            return const _EmptyLiveData(
+              icon: Icons.tips_and_updates_outlined,
+              title: 'Planning tips are being configured',
+              message: 'Publish planning tips in Supabase marketplace content.',
+            );
+          }
+          return Column(
+            children: [
+              for (final item in liveItems)
+                _TipTile(
+                  icon: item.icon,
+                  title: item.title,
+                  subtitle: item.subtitle,
+                  onTap: () => context.go(_routeForContent(item)),
+                ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -1586,7 +1738,7 @@ class _TipTile extends StatelessWidget {
     required this.onTap,
   });
 
-  final IconData icon;
+  final String icon;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
@@ -1597,7 +1749,7 @@ class _TipTile extends StatelessWidget {
       elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: ListTile(
-        leading: CircleAvatar(backgroundColor: _softPurple, child: Icon(icon, color: _purple)),
+        leading: CircleAvatar(backgroundColor: _softPurple, child: Text(icon)),
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
         subtitle: Text(subtitle),
         trailing: const Icon(Icons.arrow_forward_rounded),
@@ -1608,28 +1760,33 @@ class _TipTile extends StatelessWidget {
 }
 
 class _Faqs extends StatelessWidget {
-  const _Faqs();
+  const _Faqs({required this.items});
+
+  final AsyncValue<List<MarketplaceContentItem>> items;
 
   @override
   Widget build(BuildContext context) {
     return _SectionShell(
       title: 'FAQs',
       subtitle: 'Quick answers before you book',
-      child: Column(
-        children: const [
-          _FaqTile(
-            question: 'Can I customize a menu?',
-            answer: 'Yes. Open a package or the catering assistant to share cuisine, guests, and service preferences.',
-          ),
-          _FaqTile(
-            question: 'Are payments secure?',
-            answer: 'Payments are processed through configured production payment providers with server-side verification.',
-          ),
-          _FaqTile(
-            question: 'Can I track my order?',
-            answer: 'Yes. Confirmed orders show live lifecycle updates from preparation to delivery.',
-          ),
-        ],
+      child: items.when(
+        loading: () => const _HorizontalSkeleton(height: 132),
+        error: (_, __) => const _InlineError(message: 'Unable to load FAQs'),
+        data: (liveItems) {
+          if (liveItems.isEmpty) {
+            return const _EmptyLiveData(
+              icon: Icons.help_outline_rounded,
+              title: 'FAQs are being configured',
+              message: 'Publish FAQ content in Supabase marketplace content.',
+            );
+          }
+          return Column(
+            children: [
+              for (final item in liveItems)
+                _FaqTile(question: item.title, answer: item.subtitle),
+            ],
+          );
+        },
       ),
     );
   }
@@ -2035,49 +2192,14 @@ class _CatererSummary {
   final int packageCount;
 }
 
-class _HomeTaxonomy {
-  const _HomeTaxonomy(this.label, this.icon);
-
-  final String label;
-  final String icon;
+String _routeForContent(MarketplaceContentItem item) {
+  if (item.route != null && item.route!.startsWith('/')) return item.route!;
+  final query = Uri.encodeComponent(
+    (item.searchQuery == null || item.searchQuery!.trim().isEmpty)
+        ? item.title
+        : item.searchQuery!.trim(),
+  );
+  return '/search?q=$query';
 }
-
-const _defaultCategories = [
-  Category(id: 'veg', name: 'Veg Catering', icon: '🥦'),
-  Category(id: 'non_veg', name: 'Non Veg Catering', icon: '🍗'),
-  Category(id: 'premium', name: 'Premium Catering', icon: '👑'),
-  Category(id: 'wedding', name: 'Wedding', icon: '💍'),
-  Category(id: 'housewarming', name: 'Housewarming', icon: '🏡'),
-  Category(id: 'corporate', name: 'Corporate', icon: '🏢'),
-  Category(id: 'birthday', name: 'Birthday', icon: '🎂'),
-  Category(id: 'live_counters', name: 'Live Counters', icon: '🔥'),
-  Category(id: 'platter_box', name: 'Platter Box', icon: '🍱'),
-  Category(id: 'snacks', name: 'Snacks', icon: '🥨'),
-  Category(id: 'beverages', name: 'Beverages', icon: '🥤'),
-  Category(id: 'desserts', name: 'Desserts', icon: '🍰'),
-];
-
-const _occasions = [
-  _HomeTaxonomy('Wedding', '💍'),
-  _HomeTaxonomy('Engagement', '💐'),
-  _HomeTaxonomy('Birthday', '🎂'),
-  _HomeTaxonomy('Naming Ceremony', '👶'),
-  _HomeTaxonomy('Housewarming', '🏡'),
-  _HomeTaxonomy('Office Party', '🏢'),
-  _HomeTaxonomy('Anniversary', '🥂'),
-  _HomeTaxonomy('Kitty Party', '🫖'),
-  _HomeTaxonomy('College Events', '🎓'),
-];
-
-const _menus = [
-  _HomeTaxonomy('South Indian', '🥘'),
-  _HomeTaxonomy('North Indian', '🍛'),
-  _HomeTaxonomy('Telangana', '🌶️'),
-  _HomeTaxonomy('Andhra', '🍲'),
-  _HomeTaxonomy('Hyderabadi', '🍚'),
-  _HomeTaxonomy('Chinese', '🥡'),
-  _HomeTaxonomy('Continental', '🍝'),
-  _HomeTaxonomy('Live BBQ', '🔥'),
-];
 
 bool _isWide(BuildContext context) => MediaQuery.sizeOf(context).width >= 720;
