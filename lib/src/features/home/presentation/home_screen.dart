@@ -29,7 +29,6 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   final _heroController = PageController(viewportFraction: .92);
   Timer? _heroTimer;
-  var _selectedDestination = 0;
 
   @override
   void initState() {
@@ -202,24 +201,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ],
         ),
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedDestination,
-        onDestinationSelected: (index) {
-          setState(() => _selectedDestination = index);
-          if (index == 0) context.go('/home');
-          if (index == 1) context.go('/search');
-          if (index == 2) context.go('/orders');
-          if (index == 3) context.go('/search?q=favorites');
-          if (index == 4) context.go('/profile');
-        },
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.home_rounded), label: 'Home'),
-          NavigationDestination(icon: Icon(Icons.search_rounded), label: 'Search'),
-          NavigationDestination(icon: Icon(Icons.receipt_long_rounded), label: 'Orders'),
-          NavigationDestination(icon: Icon(Icons.favorite_rounded), label: 'Favorites'),
-          NavigationDestination(icon: Icon(Icons.person_rounded), label: 'Profile'),
-        ],
       ),
     );
   }

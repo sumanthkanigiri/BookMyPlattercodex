@@ -1,9 +1,11 @@
+import 'package:bookmyplatter/src/app/app_shell.dart';
 import 'package:bookmyplatter/src/core/supabase/bootstrap_supabase.dart';
 import 'package:bookmyplatter/src/features/auth/presentation/login_screen.dart';
 import 'package:bookmyplatter/src/features/address/presentation/addresses_screen.dart';
 import 'package:bookmyplatter/src/features/assistant/presentation/catering_assistant_screen.dart';
 import 'package:bookmyplatter/src/features/cart/presentation/cart_screen.dart';
 import 'package:bookmyplatter/src/features/checkout/presentation/checkout_screen.dart';
+import 'package:bookmyplatter/src/features/favorites/presentation/favorites_screen.dart';
 import 'package:bookmyplatter/src/features/home/presentation/home_screen.dart';
 import 'package:bookmyplatter/src/features/loyalty/presentation/loyalty_screen.dart';
 import 'package:bookmyplatter/src/features/orders/presentation/orders_screen.dart';
@@ -30,17 +32,59 @@ final appRouter = GoRouter(
   routes: [
     GoRoute(path: '/', builder: (context, state) => const SplashScreen()),
     GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
-    GoRoute(path: '/home', builder: (context, state) => const HomeScreen()),
+    StatefulShellRoute.indexedStack(
+      builder: (context, state, navigationShell) => BookMyPlatterShell(
+        navigationShell: navigationShell,
+      ),
+      branches: [
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/home',
+              builder: (context, state) => const HomeScreen(),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/search',
+              builder: (context, state) => SearchScreen(
+                initialCategoryId: state.uri.queryParameters['category'],
+                initialQuery: state.uri.queryParameters['q'] ?? '',
+              ),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/orders',
+              builder: (context, state) => const OrdersScreen(),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/favorites',
+              builder: (context, state) => const FavoritesScreen(),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/profile',
+              builder: (context, state) => const ProfileScreen(),
+            ),
+          ],
+        ),
+      ],
+    ),
     GoRoute(
       path: '/assistant',
       builder: (context, state) => const CateringAssistantScreen(),
-    ),
-    GoRoute(
-      path: '/search',
-      builder: (context, state) => SearchScreen(
-        initialCategoryId: state.uri.queryParameters['category'],
-        initialQuery: state.uri.queryParameters['q'] ?? '',
-      ),
     ),
     GoRoute(
       path: '/package/:id',
@@ -53,7 +97,6 @@ final appRouter = GoRouter(
       path: '/checkout',
       builder: (context, state) => const CheckoutScreen(),
     ),
-    GoRoute(path: '/orders', builder: (context, state) => const OrdersScreen()),
     GoRoute(
       path: '/order/:id',
       builder: (context, state) => OrderDetailsScreen(
@@ -67,7 +110,6 @@ final appRouter = GoRouter(
         confirmation: true,
       ),
     ),
-    GoRoute(path: '/profile', builder: (context, state) => const ProfileScreen()),
     GoRoute(path: '/settings', builder: (context, state) => const SettingsScreen()),
     GoRoute(
       path: '/notifications',
