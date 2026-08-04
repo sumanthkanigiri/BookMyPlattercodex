@@ -1,0 +1,269 @@
+import 'package:bookmyplatter/src/core/errors/app_exception.dart';
+import 'package:bookmyplatter/src/features/address/application/address_controller.dart';
+import 'package:bookmyplatter/src/features/address/domain/address.dart';
+import 'package:bookmyplatter/src/features/cart/application/cart_controller.dart';
+import 'package:bookmyplatter/src/features/coupons/application/coupon_controller.dart';
+import 'package:bookmyplatter/src/features/orders/application/order_controller.dart';
+import 'package:bookmyplatter/src/features/payments/application/payment_service.dart';
+import 'package:bookmyplatter/src/features/auth/data/auth_repository.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
+
+class CheckoutScreen extends ConsumerStatefulWidget {
+  const CheckoutScreen({super.key});
+
+  @override
+  ConsumerState<CheckoutScreen> createState() => _CheckoutScreenState();
+}
+
+class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
+  final couponController = TextEditingController();
+  final notesController = TextEditingController();
+  String? selectedAddressId;
+  DateTime? eventAt;
+  String eventType = 'custom';
+  String paymentMethod = 'cod';
+  bool acceptedTerms = false;
+  bool isSubmitting = false;
+
+  Future<void> selectEventTime() async {
+    final now = DateTime.now();
+    final date = await showDatePicker(
+      context: context,
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 365)),
+      initialDate: eventAt ?? now.add(const Duration(days: 1)),
+    );
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: eventAt == null
+          ? const TimeOfDay(hour: 12, minute: 0)
+          : TimeOfDay.fromDateTime(eventAt!),
+    );
+    if (time == null) return;
+    setState(() => eventAt = DateTime(date.year, date.month, date.day, time.hour, time.minute));
+  }
+
+  @override
+  void dispose() {
+    couponController.dispose();
+    notesController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final items = ref.watch(cartControllerProvider);
+    final subtotal = ref.watch(cartSubtotalProvider);
+    final couponState = ref.watch(couponControllerProvider);
+    final coupon = couponState.valueOrNull;
+    final addressesState = ref.watch(addressControllerProvider);
+    final addresses = addressesState.valueOrNull ?? const [];
+    Address? selectedAddress;
+    for (final address in addresses) {
+      if (address.id == selectedAddressId) selectedAddress = address;
+    }
+    selectedAddress ??= addresses.isEmpty ? null : addresses.first;
+    final discount = coupon?.discountFor(subtotal) ?? 0;
+    final tax = (subtotal - discount) * 0.05;
+    final total = subtotal - discount + tax;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Checkout')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          ListTile(
+            leading: const Icon(Icons.event),
+            title: const Text('Event date and time'),
+            subtitle: Text(eventAt == null ? 'Select event schedule' : DateFormat('EEEE, d MMM yyyy • h:mm a').format(eventAt!)),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: selectEventTime,
+          ),
+          DropdownButtonFormField<String>(
+            value: eventType,
+            decoration: const InputDecoration(
+              labelText: 'Event type',
+              prefixIcon: Icon(Icons.celebration_outlined),
+            ),
+            items: const [
+              DropdownMenuItem(value: 'wedding', child: Text('Wedding')),
+              DropdownMenuItem(value: 'birthday', child: Text('Birthday')),
+              DropdownMenuItem(value: 'corporate', child: Text('Corporate')),
+              DropdownMenuItem(value: 'house_warming', child: Text('House warming')),
+              DropdownMenuItem(value: 'naming_ceremony', child: Text('Naming ceremony')),
+              DropdownMenuItem(value: 'engagement', child: Text('Engagement')),
+              DropdownMenuItem(value: 'anniversary', child: Text('Anniversary')),
+              DropdownMenuItem(value: 'baby_shower', child: Text('Baby shower')),
+              DropdownMenuItem(value: 'custom', child: Text('Custom event')),
+            ],
+            onChanged: (value) => setState(() => eventType = value ?? 'custom'),
+          ),
+          const SizedBox(height: 12),
+          Text('Delivery address', style: Theme.of(context).textTheme.titleMedium),
+          addressesState.when(
+            loading: () => const LinearProgressIndicator(),
+            error: (error, _) => ListTile(
+              leading: const Icon(Icons.error_outline),
+              title: const Text('Unable to load saved addresses'),
+              subtitle: Text(error.toString()),
+              trailing: IconButton(
+                onPressed: () => ref.read(addressControllerProvider.notifier).refresh(),
+                icon: const Icon(Icons.refresh),
+              ),
+            ),
+            data: (savedAddresses) => savedAddresses.isEmpty
+                ? const ListTile(
+                    leading: Icon(Icons.add_location_alt_outlined),
+                    title: Text('Add a saved address before checkout'),
+                  )
+                : Column(
+                    children: [
+                      for (final address in savedAddresses)
+                        RadioListTile<String>(
+                          value: address.id,
+                          groupValue: selectedAddress?.id,
+                          onChanged: (value) => setState(() => selectedAddressId = value),
+                          title: Text(address.label),
+                          subtitle: Text('${address.line1}, ${address.area}, ${address.city} ${address.pincode}'),
+                        ),
+                    ],
+                  ),
+          ),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: couponController,
+                  decoration: const InputDecoration(labelText: 'Coupon code'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              FilledButton(
+                onPressed: couponState.isLoading
+                    ? null
+                    : () async {
+                        await ref
+                            .read(couponControllerProvider.notifier)
+                            .apply(couponController.text, subtotal);
+                        if (!context.mounted) return;
+                        final result = ref.read(couponControllerProvider);
+                        if (result.hasError) {
+                          final error = result.error;
+                          final message = error is AppException ? error.message : 'Unable to validate coupon';
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+                        }
+                      },
+                child: couponState.isLoading
+                    ? const SizedBox.square(
+                        dimension: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Apply'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: notesController,
+            maxLines: 3,
+            maxLength: 500,
+            decoration: const InputDecoration(
+              labelText: 'Special instructions',
+              hintText: 'Allergies, serving preferences, venue directions…',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          Text('Payment method', style: Theme.of(context).textTheme.titleMedium),
+          RadioListTile<String>(
+            value: 'cod',
+            groupValue: paymentMethod,
+            onChanged: (value) => setState(() => paymentMethod = value ?? 'cod'),
+            title: const Text('Cash on delivery'),
+            subtitle: const Text('Pay according to the confirmed order terms'),
+          ),
+          RadioListTile<String>(
+            value: 'razorpay',
+            groupValue: paymentMethod,
+            onChanged: (value) => setState(() => paymentMethod = value ?? 'razorpay'),
+            title: const Text('Pay online with Razorpay'),
+            subtitle: const Text('UPI, cards, netbanking, and supported wallets'),
+          ),
+          const SizedBox(height: 16),
+          _AmountRow(label: 'Subtotal', amount: subtotal),
+          _AmountRow(label: 'Discount', amount: -discount),
+          _AmountRow(label: 'Tax', amount: tax),
+          const _AmountRow(label: 'Delivery', amount: 0),
+          const Divider(),
+          _AmountRow(label: 'Total', amount: total),
+          CheckboxListTile(
+            value: acceptedTerms,
+            contentPadding: EdgeInsets.zero,
+            onChanged: (value) => setState(() => acceptedTerms = value ?? false),
+            title: const Text('I agree to the booking terms and cancellation policy'),
+            controlAffinity: ListTileControlAffinity.leading,
+          ),
+          const SizedBox(height: 16),
+          FilledButton(
+            onPressed: items.isEmpty || selectedAddress == null || eventAt == null || !acceptedTerms || isSubmitting
+                ? null
+                : () async {
+                    setState(() => isSubmitting = true);
+                    try {
+                      final orderIds = await ref.read(orderControllerProvider.notifier).placeOrder(
+                            items: items,
+                            address: selectedAddress,
+                            eventAt: eventAt!,
+                            eventType: eventType,
+                            paymentMethod: paymentMethod,
+                            notes: notesController.text.trim(),
+                            coupon: coupon,
+                          );
+                      if (paymentMethod == 'razorpay') {
+                        final user = ref.read(authRepositoryProvider).currentUser;
+                        await ref.read(paymentServiceProvider).pay(
+                              orderId: orderIds.first,
+                              name: user?.userMetadata?['full_name'] as String?,
+                              phone: user?.phone,
+                              email: user?.email,
+                            );
+                      }
+                      ref.read(cartControllerProvider.notifier).clear();
+                      if (context.mounted) context.go('/orders');
+                    } catch (error) {
+                      if (!context.mounted) return;
+                      final message = error is AppException ? error.message : 'Unable to place order';
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+                    } finally {
+                      if (mounted) setState(() => isSubmitting = false);
+                    }
+                  },
+            child: isSubmitting
+                ? const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Text('Confirm order'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AmountRow extends StatelessWidget {
+  const _AmountRow({required this.label, required this.amount});
+  final String label;
+  final double amount;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [Text(label), Text('₹${amount.toStringAsFixed(0)}')],
+      ),
+    );
+  }
+}
