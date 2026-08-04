@@ -3,6 +3,7 @@ import 'package:bookmyplatter/src/features/address/application/address_controlle
 import 'package:bookmyplatter/src/features/address/domain/address.dart';
 import 'package:bookmyplatter/src/features/cart/application/cart_controller.dart';
 import 'package:bookmyplatter/src/features/coupons/application/coupon_controller.dart';
+import 'package:bookmyplatter/src/features/crm/application/crm_repository.dart';
 import 'package:bookmyplatter/src/features/checkout/application/checkout_settings.dart';
 import 'package:bookmyplatter/src/features/orders/application/order_controller.dart';
 import 'package:bookmyplatter/src/features/payments/application/payment_service.dart';
@@ -28,6 +29,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   String paymentMethod = 'razorpay';
   bool acceptedTerms = false;
   bool isSubmitting = false;
+  String? trackedCheckoutFingerprint;
 
   Future<void> selectEventTime() async {
     final now = DateTime.now();
@@ -87,6 +89,24 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     final tax = (subtotal - discount) * (checkoutSettings?.taxPercent ?? 0) / 100;
     final delivery = checkoutSettings?.deliveryCharge ?? 0;
     final total = subtotal - discount + tax + delivery;
+    final checkoutFingerprint = crmCartFingerprint(items);
+    if (items.isNotEmpty && trackedCheckoutFingerprint != checkoutFingerprint) {
+      trackedCheckoutFingerprint = checkoutFingerprint;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ref
+            .read(crmRepositoryProvider)
+            .recordCheckoutStarted(
+              items: items,
+              address: selectedAddress,
+              eventAt: eventAt,
+              eventType: eventType,
+              notes: notesController.text,
+              total: total,
+            )
+            .catchError((_) => '');
+      });
+    }
 
     return Scaffold(
       appBar: AppBar(title: const Text('Checkout')),

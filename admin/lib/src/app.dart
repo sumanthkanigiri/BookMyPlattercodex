@@ -2,6 +2,7 @@ import 'package:bookmyplatter_admin/src/core/admin_session.dart';
 import 'package:bookmyplatter_admin/src/features/auth/admin_login_screen.dart';
 import 'package:bookmyplatter_admin/src/features/dashboard/dashboard_screen.dart';
 import 'package:bookmyplatter_admin/src/features/catalog/admin_catalog_screen.dart';
+import 'package:bookmyplatter_admin/src/features/crm/crm_screen.dart';
 import 'package:bookmyplatter_admin/src/features/orders/admin_orders_screen.dart';
 import 'package:bookmyplatter_admin/src/features/operations/operations_screen.dart';
 import 'package:bookmyplatter_admin/src/features/management/management_screen.dart';
@@ -19,6 +20,7 @@ final adminRouterProvider = Provider<GoRouter>((ref) {
         routes: [
           GoRoute(path: '/dashboard', builder: (_, __) => const DashboardScreen()),
           GoRoute(path: '/orders', builder: (_, __) => const AdminOrdersScreen()),
+          GoRoute(path: '/crm', builder: (_, __) => const CrmScreen()),
           GoRoute(path: '/catalog', builder: (_, __) => const AdminCatalogScreen()),
           GoRoute(path: '/operations', builder: (_, __) => const OperationsScreen()),
           GoRoute(path: '/management', builder: (_, __) => const ManagementScreen()),
@@ -60,11 +62,11 @@ class AdminShell extends ConsumerWidget {
     final compact = MediaQuery.sizeOf(context).width < 900;
     final role = ref.watch(adminIdentityProvider).valueOrNull?.role;
     final fullAccess = role == 'admin' || role == 'support';
-    final paths = fullAccess ? const ['/dashboard', '/orders', '/catalog', '/operations', '/management'] : const ['/operations'];
+    final paths = fullAccess ? const ['/dashboard', '/orders', '/crm', '/catalog', '/operations', '/management'] : const ['/operations'];
     final destinations = fullAccess
-        ? const [NavigationRailDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard), label: Text('Dashboard')), NavigationRailDestination(icon: Icon(Icons.receipt_long_outlined), selectedIcon: Icon(Icons.receipt_long), label: Text('Orders')), NavigationRailDestination(icon: Icon(Icons.inventory_2_outlined), selectedIcon: Icon(Icons.inventory_2), label: Text('Catalog')), NavigationRailDestination(icon: Icon(Icons.factory_outlined), selectedIcon: Icon(Icons.factory), label: Text('Operations')), NavigationRailDestination(icon: Icon(Icons.admin_panel_settings_outlined), selectedIcon: Icon(Icons.admin_panel_settings), label: Text('Manage'))]
+        ? const [NavigationRailDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard), label: Text('Dashboard')), NavigationRailDestination(icon: Icon(Icons.receipt_long_outlined), selectedIcon: Icon(Icons.receipt_long), label: Text('Orders')), NavigationRailDestination(icon: Icon(Icons.groups_outlined), selectedIcon: Icon(Icons.groups), label: Text('CRM')), NavigationRailDestination(icon: Icon(Icons.inventory_2_outlined), selectedIcon: Icon(Icons.inventory_2), label: Text('Catalog')), NavigationRailDestination(icon: Icon(Icons.factory_outlined), selectedIcon: Icon(Icons.factory), label: Text('Operations')), NavigationRailDestination(icon: Icon(Icons.admin_panel_settings_outlined), selectedIcon: Icon(Icons.admin_panel_settings), label: Text('Manage'))]
         : const [NavigationRailDestination(icon: Icon(Icons.factory_outlined), selectedIcon: Icon(Icons.factory), label: Text('Operations'))];
-    final requestedIndex = location.startsWith('/orders') ? 1 : location.startsWith('/catalog') ? 2 : location.startsWith('/operations') ? 3 : location.startsWith('/management') ? 4 : 0;
+    final requestedIndex = location.startsWith('/orders') ? 1 : location.startsWith('/crm') ? 2 : location.startsWith('/catalog') ? 3 : location.startsWith('/operations') ? 4 : location.startsWith('/management') ? 5 : 0;
     final index = fullAccess ? requestedIndex : 0;
     return Scaffold(
       appBar: AppBar(title: const Text('BookMyPlatter Operations'), actions: [IconButton(tooltip: 'Sign out', onPressed: () => ref.read(adminAuthRepositoryProvider).signOut(), icon: const Icon(Icons.logout))]),
@@ -73,7 +75,7 @@ class AdminShell extends ConsumerWidget {
           NavigationRail(extended: MediaQuery.sizeOf(context).width > 1200, selectedIndex: index, onDestinationSelected: (value) => context.go(paths[value]), destinations: destinations),
         Expanded(child: !fullAccess && !location.startsWith('/operations') ? const OperationsScreen() : child),
       ]),
-      bottomNavigationBar: compact ? NavigationBar(selectedIndex: index, onDestinationSelected: (value) => context.go(paths[value]), destinations: fullAccess ? const [NavigationDestination(icon: Icon(Icons.dashboard_outlined), label: 'Dashboard'), NavigationDestination(icon: Icon(Icons.receipt_long_outlined), label: 'Orders'), NavigationDestination(icon: Icon(Icons.inventory_2_outlined), label: 'Catalog'), NavigationDestination(icon: Icon(Icons.factory_outlined), label: 'Operations'), NavigationDestination(icon: Icon(Icons.admin_panel_settings_outlined), label: 'Manage')] : const [NavigationDestination(icon: Icon(Icons.factory_outlined), label: 'Operations')]) : null,
+      bottomNavigationBar: compact ? NavigationBar(selectedIndex: index, onDestinationSelected: (value) => context.go(paths[value]), destinations: fullAccess ? const [NavigationDestination(icon: Icon(Icons.dashboard_outlined), label: 'Dashboard'), NavigationDestination(icon: Icon(Icons.receipt_long_outlined), label: 'Orders'), NavigationDestination(icon: Icon(Icons.groups_outlined), label: 'CRM'), NavigationDestination(icon: Icon(Icons.inventory_2_outlined), label: 'Catalog'), NavigationDestination(icon: Icon(Icons.factory_outlined), label: 'Operations'), NavigationDestination(icon: Icon(Icons.admin_panel_settings_outlined), label: 'Manage')] : const [NavigationDestination(icon: Icon(Icons.factory_outlined), label: 'Operations')]) : null,
     );
   }
 }
