@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:bookmyplatter/src/core/notifications/push_notifications.dart';
 import 'package:bookmyplatter/src/core/supabase/bootstrap_supabase.dart';
+import 'package:bookmyplatter/src/features/tracking/application/customer_activity_repository.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -102,6 +103,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
               'Startup timed out. Please verify your connection and try again.',
             ),
           );
+      await ref.read(customerActivityRepositoryProvider).appOpen();
       await Future<void>.delayed(const Duration(milliseconds: 500));
       if (!mounted) return;
       context.go(signedIn ? '/home' : '/login');

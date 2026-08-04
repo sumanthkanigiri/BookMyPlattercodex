@@ -34,6 +34,37 @@ class NotificationTemplateConfig {
   final bool enabled;
 }
 
+class CustomerActivityEvent {
+  const CustomerActivityEvent({
+    required this.id,
+    required this.activityType,
+    required this.customerId,
+    required this.leadId,
+    required this.pagePath,
+    required this.searchQuery,
+    required this.occurredAt,
+  });
+
+  factory CustomerActivityEvent.fromMap(Map<String, dynamic> map) =>
+      CustomerActivityEvent(
+        id: map['id'] as String,
+        activityType: map['activity_type'] as String? ?? 'activity',
+        customerId: map['customer_id'] as String? ?? '',
+        leadId: map['lead_id'] as String? ?? '',
+        pagePath: map['page_path'] as String? ?? '',
+        searchQuery: map['search_query'] as String? ?? '',
+        occurredAt: DateTime.parse(map['occurred_at'] as String).toLocal(),
+      );
+
+  final String id;
+  final String activityType;
+  final String customerId;
+  final String leadId;
+  final String pagePath;
+  final String searchQuery;
+  final DateTime occurredAt;
+}
+
 class CrmMetrics {
   const CrmMetrics({
     required this.todayLeads,
@@ -66,6 +97,10 @@ class CrmLead {
     required this.nextFollowUpAt,
     required this.createdAt,
     required this.notes,
+    required this.priority,
+    required this.expectedRevenue,
+    required this.probability,
+    required this.leadScore,
   });
 
   factory CrmLead.fromMap(Map<String, dynamic> map) => CrmLead(
@@ -83,6 +118,10 @@ class CrmLead {
             : DateTime.parse(map['next_follow_up_at'] as String).toLocal(),
         createdAt: DateTime.parse(map['created_at'] as String).toLocal(),
         notes: map['notes'] as String? ?? '',
+        priority: (map['priority'] as num?)?.toInt() ?? 3,
+        expectedRevenue: (map['expected_revenue'] as num?)?.toDouble() ?? 0,
+        probability: (map['probability'] as num?)?.toInt() ?? 10,
+        leadScore: (map['lead_score'] as num?)?.toInt() ?? 0,
       );
 
   final String id;
@@ -97,6 +136,10 @@ class CrmLead {
   final DateTime? nextFollowUpAt;
   final DateTime createdAt;
   final String notes;
+  final int priority;
+  final double expectedRevenue;
+  final int probability;
+  final int leadScore;
 }
 
 final crmMetricsProvider = FutureProvider<CrmMetrics>((ref) async {
@@ -113,12 +156,12 @@ final crmMetricsProvider = FutureProvider<CrmMetrics>((ref) async {
   final pending = await client
       .from('leads')
       .select('id')
-      .inFilter('status', ['new', 'contacted', 'qualified', 'follow_up'])
+      .inFilter('status', ['new', 'contacted', 'qualified', 'follow_up', 'interested', 'quotation_sent', 'follow_up_1', 'follow_up_2', 'follow_up_3', 'follow_up_4', 'need_callback', 'need_tasting', 'need_quotation'])
       .count(CountOption.exact);
   final converted = await client
       .from('leads')
       .select('id')
-      .eq('status', 'converted')
+      .inFilter('status', ['converted', 'won'])
       .count(CountOption.exact);
   final lost = await client
       .from('leads')
@@ -151,15 +194,31 @@ final crmLeadsProvider = FutureProvider<List<CrmLead>>((ref) async {
   final client = ref.watch(supabaseProvider);
   final rows = await client
       .from('leads')
-      .select('id,customer_name,mobile,event_type,guest_count,source,status,booking_status,payment_status,next_follow_up_at,created_at,notes')
+      .select('id,customer_name,mobile,event_type,guest_count,source,status,booking_status,payment_status,next_follow_up_at,created_at,notes,priority,expected_revenue,probability,lead_score')
       .order('updated_at', ascending: false)
       .limit(100);
   return [for (final row in rows) CrmLead.fromMap(row)];
 });
 
+final customerActivityProvider = FutureProvider<List<CustomerActivityEvent>>((ref) async {
+  final client = ref.watch(supabaseProvider);
+  final rows = await client
+      .from('customer_activity')
+      .select('id,activity_type,customer_id,lead_id,page_path,search_query,occurred_at')
+      .order('occurred_at', ascending: false)
+      .limit(30);
+  return [for (final row in rows) CustomerActivityEvent.fromMap(row)];
+});
+
 final crmLeadEventsProvider = StreamProvider<List<Map<String, dynamic>>>((ref) {
   final client = ref.watch(supabaseProvider);
   return client.from('leads').stream(primaryKey: ['id']);
+});
+
+final customerActivityEventsProvider =
+    StreamProvider<List<Map<String, dynamic>>>((ref) {
+  final client = ref.watch(supabaseProvider);
+  return client.from('customer_activity').stream(primaryKey: ['id']);
 });
 
 

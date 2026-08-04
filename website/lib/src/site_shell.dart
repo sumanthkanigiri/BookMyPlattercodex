@@ -1,4 +1,5 @@
 import 'package:bookmyplatter/src/features/crm/application/crm_repository.dart';
+import 'package:bookmyplatter/src/features/tracking/application/customer_activity_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -70,6 +71,7 @@ class SiteShell extends ConsumerWidget {
   }
 
   static Future<void> _openWhatsApp(BuildContext context, WidgetRef ref) async {
+    ref.read(customerActivityRepositoryProvider).whatsappClick();
     var leadId = '';
     try {
       leadId = await ref.read(crmRepositoryProvider).recordWhatsAppClick();

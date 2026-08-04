@@ -7,6 +7,7 @@ import 'package:bookmyplatter/src/features/crm/application/crm_repository.dart';
 import 'package:bookmyplatter/src/features/checkout/application/checkout_settings.dart';
 import 'package:bookmyplatter/src/features/orders/application/order_controller.dart';
 import 'package:bookmyplatter/src/features/payments/application/payment_service.dart';
+import 'package:bookmyplatter/src/features/tracking/application/customer_activity_repository.dart';
 import 'package:bookmyplatter/src/features/auth/data/auth_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -103,6 +104,17 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               eventType: eventType,
               notes: notesController.text,
               total: total,
+            )
+            .catchError((_) => '');
+        ref
+            .read(customerActivityRepositoryProvider)
+            .record(
+              activityType: 'checkout_started',
+              metadata: {
+                'event_type': eventType,
+                'total': total,
+                'item_count': items.length,
+              },
             )
             .catchError((_) => '');
       });

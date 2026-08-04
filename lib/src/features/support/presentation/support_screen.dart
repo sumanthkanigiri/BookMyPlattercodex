@@ -1,5 +1,6 @@
 import 'package:bookmyplatter/src/features/crm/application/crm_repository.dart';
 import 'package:bookmyplatter/src/features/support/application/support_controller.dart';
+import 'package:bookmyplatter/src/features/tracking/application/customer_activity_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -40,6 +41,7 @@ class SupportScreen extends ConsumerWidget {
                       icon: Icons.chat,
                       label: 'WhatsApp',
                       onPressed: () async {
+                        ref.read(customerActivityRepositoryProvider).whatsappClick();
                         var leadId = '';
                         try {
                           leadId = await ref
@@ -60,7 +62,16 @@ class SupportScreen extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Expanded(child: _ContactButton(icon: Icons.call_outlined, label: 'Call', onPressed: () => _open(context, Uri(scheme: 'tel', path: details.phone)))),
+                  Expanded(
+                    child: _ContactButton(
+                      icon: Icons.call_outlined,
+                      label: 'Call',
+                      onPressed: () {
+                        ref.read(customerActivityRepositoryProvider).callClick();
+                        _open(context, Uri(scheme: 'tel', path: details.phone));
+                      },
+                    ),
+                  ),
                   const SizedBox(width: 8),
                   Expanded(child: _ContactButton(icon: Icons.email_outlined, label: 'Email', onPressed: () => _open(context, Uri(scheme: 'mailto', path: details.email)))),
                 ],

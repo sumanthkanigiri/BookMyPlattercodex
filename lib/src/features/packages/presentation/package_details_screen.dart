@@ -2,6 +2,7 @@ import 'package:bookmyplatter/src/features/cart/application/cart_controller.dart
 import 'package:bookmyplatter/src/features/catalog/data/catalog_repository.dart';
 import 'package:bookmyplatter/src/features/favorites/application/favorites_controller.dart';
 import 'package:bookmyplatter/src/features/reviews/application/review_controller.dart';
+import 'package:bookmyplatter/src/features/tracking/application/customer_activity_repository.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -20,6 +21,15 @@ class _PackageDetailsScreenState extends ConsumerState<PackageDetailsScreen> {
   int? _guests;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(customerActivityRepositoryProvider).packageViewed(widget.packageId);
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final package = ref.watch(packageProvider(widget.packageId));
     final favorites = ref.watch(favoritesControllerProvider).valueOrNull ?? const <String>{};
@@ -33,6 +43,7 @@ class _PackageDetailsScreenState extends ConsumerState<PackageDetailsScreen> {
             onPressed: () async {
               try {
                 await ref.read(favoritesControllerProvider.notifier).toggle(widget.packageId);
+                await ref.read(customerActivityRepositoryProvider).favourite(widget.packageId);
               } catch (_) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -153,6 +164,7 @@ class _PackageDetailsScreenState extends ConsumerState<PackageDetailsScreen> {
                       child: FilledButton.icon(
                         onPressed: () {
                           ref.read(cartControllerProvider.notifier).addPackage(item, guests: guests);
+                          ref.read(customerActivityRepositoryProvider).cartAdded(item.id, guests: guests);
                           context.go('/cart');
                         },
                         icon: const Icon(Icons.add_shopping_cart),

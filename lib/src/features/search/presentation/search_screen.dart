@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:bookmyplatter/src/features/catalog/data/catalog_repository.dart';
+import 'package:bookmyplatter/src/features/tracking/application/customer_activity_repository.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -48,7 +49,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   void updateSearch(String value) {
     debounce?.cancel();
     debounce = Timer(const Duration(milliseconds: 350), () {
-      if (mounted) setState(() => query = value);
+      if (!mounted) return;
+      setState(() => query = value);
+      ref.read(customerActivityRepositoryProvider).search(value);
     });
   }
 

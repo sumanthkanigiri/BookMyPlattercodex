@@ -13,9 +13,13 @@ class CrmScreen extends ConsumerWidget {
         ..invalidate(crmMetricsProvider)
         ..invalidate(crmLeadsProvider);
     });
+    ref.listen(customerActivityEventsProvider, (_, __) {
+      ref.invalidate(customerActivityProvider);
+    });
     final metrics = ref.watch(crmMetricsProvider);
     final leads = ref.watch(crmLeadsProvider);
     final templates = ref.watch(notificationTemplatesProvider);
+    final activity = ref.watch(customerActivityProvider);
     return Scaffold(
       body: RefreshIndicator(
         onRefresh: () async {
@@ -54,6 +58,16 @@ class CrmScreen extends ConsumerWidget {
               data: (items) => items.isEmpty
                   ? const Card(child: ListTile(leading: Icon(Icons.inbox_outlined), title: Text('No leads yet')))
                   : Column(children: [for (final lead in items) _LeadTile(lead: lead)]),
+            ),
+            const SizedBox(height: 24),
+            Text('Live Customer Activity', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 8),
+            activity.when(
+              loading: () => const LinearProgressIndicator(),
+              error: (error, _) => _Failure(message: error.toString(), onRetry: () => ref.invalidate(customerActivityProvider)),
+              data: (items) => items.isEmpty
+                  ? const Card(child: ListTile(leading: Icon(Icons.timeline), title: Text('No customer activity captured yet')))
+                  : Column(children: [for (final item in items) _ActivityTile(item: item)]),
             ),
             const SizedBox(height: 24),
             Text('Notification Templates', style: Theme.of(context).textTheme.titleLarge),
@@ -119,7 +133,9 @@ class _LeadTile extends StatelessWidget {
         title: Text(lead.customerName.isEmpty ? lead.mobile : lead.customerName),
         subtitle: Text(
           '${lead.eventType.replaceAll('_', ' ')} • '
-          '${lead.guestCount ?? 0} guests • $followUp\n${lead.notes}',
+          '${lead.guestCount ?? 0} guests • $followUp\n'
+          'Score ${lead.leadScore} • ₹${lead.expectedRevenue.toStringAsFixed(0)} expected • '
+          '${lead.probability}% probability • P${lead.priority}\n${lead.notes}',
         ),
         isThreeLine: true,
         trailing: Wrap(
@@ -129,6 +145,30 @@ class _LeadTile extends StatelessWidget {
             Chip(label: Text(lead.bookingStatus.replaceAll('_', ' '))),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ActivityTile extends StatelessWidget {
+  const _ActivityTile({required this.item});
+  final CustomerActivityEvent item;
+
+  @override
+  Widget build(BuildContext context) {
+    final detail = item.searchQuery.isNotEmpty
+        ? 'Search: ${item.searchQuery}'
+        : item.pagePath.isNotEmpty
+            ? item.pagePath
+            : item.customerId.isNotEmpty
+                ? 'Customer ${item.customerId}'
+                : 'Anonymous visitor';
+    return Card(
+      child: ListTile(
+        leading: const Icon(Icons.insights),
+        title: Text(item.activityType.replaceAll('_', ' ')),
+        subtitle: Text(detail),
+        trailing: Text(DateFormat('d MMM, h:mm a').format(item.occurredAt)),
       ),
     );
   }
