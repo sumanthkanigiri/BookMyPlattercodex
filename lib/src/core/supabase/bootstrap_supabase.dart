@@ -1,8 +1,32 @@
+import 'dart:async';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 const _supabaseUrl = String.fromEnvironment('SUPABASE_URL');
 const _supabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
 const _supabaseProjectId = String.fromEnvironment('PROJECT_ID');
+bool _supabaseInitialized = false;
+
+bool get isSupabaseInitialized {
+  if (_supabaseInitialized) return true;
+  try {
+    Supabase.instance.client;
+    _supabaseInitialized = true;
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+final supabaseBootstrapProvider = FutureProvider<void>((ref) async {
+  await bootstrapSupabase().timeout(
+    const Duration(seconds: 10),
+    onTimeout: () => throw TimeoutException(
+      'Supabase initialization timed out. Check SUPABASE_URL and network access.',
+    ),
+  );
+});
 
 class SupabaseEnvironment {
   const SupabaseEnvironment._();
@@ -22,7 +46,7 @@ class SupabaseEnvironment {
       );
     }
 
-    final uri = Uri.tryParse(_supabaseUrl);
+    final uri = Uri.tryParse(_supabaseUrl.trim());
     if (uri == null || uri.scheme != 'https' || uri.host.isEmpty) {
       throw StateError('SUPABASE_URL must be a valid HTTPS URL.');
     }
@@ -37,10 +61,13 @@ class SupabaseEnvironment {
 }
 
 Future<void> bootstrapSupabase() async {
+  if (isSupabaseInitialized) return;
+
   SupabaseEnvironment.validate();
 
   await Supabase.initialize(
     url: _supabaseUrl.trim(),
     anonKey: _supabaseAnonKey.trim(),
   );
+  _supabaseInitialized = true;
 }
