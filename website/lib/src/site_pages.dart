@@ -1,5 +1,6 @@
 import 'package:bookmyplatter/src/core/supabase/supabase_providers.dart';
 import 'package:bookmyplatter/src/features/catalog/data/catalog_repository.dart';
+import 'package:bookmyplatter/src/features/catalog/domain/category.dart';
 import 'package:bookmyplatter/src/features/catalog/domain/package.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -22,6 +23,131 @@ final websiteContentProvider = FutureProvider.family<String, ContentKind>((ref, 
 
 enum ContentKind { about, privacy, terms }
 
+final websiteCitiesProvider = FutureProvider<List<WebsiteCity>>((ref) async {
+  final rows = await ref
+      .watch(supabaseClientProvider)
+      .from('cities')
+      .select('name,slug')
+      .eq('is_active', true)
+      .order('name')
+      .limit(30);
+  return [for (final row in rows) WebsiteCity.fromMap(row)];
+});
+
+final websiteFaqsProvider = FutureProvider<List<WebsiteFaq>>((ref) async {
+  final rows = await ref
+      .watch(supabaseClientProvider)
+      .from('website_faqs')
+      .select('question,answer,category,sort_order')
+      .eq('is_active', true)
+      .order('sort_order')
+      .limit(20);
+  return [for (final row in rows) WebsiteFaq.fromMap(row)];
+});
+
+final websiteReviewsProvider = FutureProvider<List<WebsiteReview>>((ref) async {
+  final rows = await ref
+      .watch(supabaseClientProvider)
+      .from('website_reviews')
+      .select('customer_name,rating,review_text,source,city')
+      .eq('is_active', true)
+      .order('published_at', ascending: false)
+      .limit(12);
+  return [for (final row in rows) WebsiteReview.fromMap(row)];
+});
+
+final websiteBlogPostsProvider = FutureProvider<List<WebsiteBlogPost>>((ref) async {
+  final rows = await ref
+      .watch(supabaseClientProvider)
+      .from('website_blog_posts')
+      .select('slug,title,excerpt,category,tags,cover_image_url,published_at')
+      .eq('is_published', true)
+      .order('published_at', ascending: false)
+      .limit(6);
+  return [for (final row in rows) WebsiteBlogPost.fromMap(row)];
+});
+
+class WebsiteCity {
+  const WebsiteCity({required this.name, required this.slug});
+  factory WebsiteCity.fromMap(Map<String, dynamic> map) => WebsiteCity(name: map['name'] as String, slug: map['slug'] as String);
+  final String name;
+  final String slug;
+}
+
+class WebsiteFaq {
+  const WebsiteFaq({required this.question, required this.answer, required this.category});
+  factory WebsiteFaq.fromMap(Map<String, dynamic> map) => WebsiteFaq(question: map['question'] as String, answer: map['answer'] as String, category: map['category'] as String? ?? 'General');
+  final String question;
+  final String answer;
+  final String category;
+}
+
+class WebsiteReview {
+  const WebsiteReview({required this.customerName, required this.rating, required this.reviewText, required this.source, required this.city});
+  factory WebsiteReview.fromMap(Map<String, dynamic> map) => WebsiteReview(customerName: map['customer_name'] as String, rating: (map['rating'] as num).toDouble(), reviewText: map['review_text'] as String, source: map['source'] as String? ?? 'Google', city: map['city'] as String? ?? '');
+  final String customerName;
+  final double rating;
+  final String reviewText;
+  final String source;
+  final String city;
+}
+
+
+final websiteBlogPostProvider = FutureProvider.family<WebsiteBlogPostDetails, String>((ref, slug) async {
+  final row = await ref
+      .watch(supabaseClientProvider)
+      .from('website_blog_posts')
+      .select('slug,title,excerpt,content,category,tags,cover_image_url,meta_title,meta_description,canonical_url')
+      .eq('slug', slug)
+      .eq('is_published', true)
+      .single();
+  return WebsiteBlogPostDetails.fromMap(row);
+});
+
+class WebsiteBlogPostDetails extends WebsiteBlogPost {
+  const WebsiteBlogPostDetails({
+    required super.slug,
+    required super.title,
+    required super.excerpt,
+    required super.category,
+    required super.tags,
+    required this.content,
+    this.metaTitle,
+    this.metaDescription,
+    this.canonicalUrl,
+    super.coverImageUrl,
+  });
+
+  factory WebsiteBlogPostDetails.fromMap(Map<String, dynamic> map) => WebsiteBlogPostDetails(
+        slug: map['slug'] as String,
+        title: map['title'] as String,
+        excerpt: map['excerpt'] as String? ?? '',
+        category: map['category'] as String? ?? 'Catering Guides',
+        tags: List<String>.from((map['tags'] as List<dynamic>?) ?? const []),
+        coverImageUrl: map['cover_image_url'] as String?,
+        content: map['content'] as String,
+        metaTitle: map['meta_title'] as String?,
+        metaDescription: map['meta_description'] as String?,
+        canonicalUrl: map['canonical_url'] as String?,
+      );
+
+  final String content;
+  final String? metaTitle;
+  final String? metaDescription;
+  final String? canonicalUrl;
+}
+
+class WebsiteBlogPost {
+  const WebsiteBlogPost({required this.slug, required this.title, required this.excerpt, required this.category, required this.tags, this.coverImageUrl});
+  factory WebsiteBlogPost.fromMap(Map<String, dynamic> map) => WebsiteBlogPost(slug: map['slug'] as String, title: map['title'] as String, excerpt: map['excerpt'] as String? ?? '', category: map['category'] as String? ?? 'Catering Guides', tags: List<String>.from((map['tags'] as List<dynamic>?) ?? const []), coverImageUrl: map['cover_image_url'] as String?);
+  final String slug;
+  final String title;
+  final String excerpt;
+  final String category;
+  final List<String> tags;
+  final String? coverImageUrl;
+}
+
 class WebsiteHomePage extends ConsumerWidget {
   const WebsiteHomePage({super.key});
 
@@ -29,6 +155,17 @@ class WebsiteHomePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final banners = ref.watch(bannersProvider);
     final packages = ref.watch(packagesProvider(const PackageQuery()));
+    final vegPackages = ref.watch(packagesProvider(const PackageQuery(packageType: 'veg')));
+    final nonVegPackages = ref.watch(packagesProvider(const PackageQuery(packageType: 'non_veg')));
+    final platterBoxes = ref.watch(packagesProvider(const PackageQuery(packageType: 'platter_box')));
+    final corporatePackages = ref.watch(packagesProvider(const PackageQuery(eventType: 'corporate')));
+    final weddingPackages = ref.watch(packagesProvider(const PackageQuery(eventType: 'wedding')));
+    final categories = ref.watch(categoriesProvider);
+    final offers = ref.watch(marketplaceCollectionProvider('limited_offers'));
+    final reviews = ref.watch(websiteReviewsProvider);
+    final faqs = ref.watch(websiteFaqsProvider);
+    final cities = ref.watch(websiteCitiesProvider);
+    final blogs = ref.watch(websiteBlogPostsProvider);
     return Title(
       title: 'BookMyPlatter | Catering for Every Celebration',
       color: const Color(0xFF3C1285),
@@ -40,17 +177,20 @@ class WebsiteHomePage extends ConsumerWidget {
         },
         child: CustomScrollView(slivers: [
           SliverToBoxAdapter(child: _Hero(banners: banners, onRetry: () => ref.invalidate(bannersProvider))),
-          SliverToBoxAdapter(
-            child: _Section(
-              title: 'Plan your event in minutes',
-              subtitle: 'Tell our smart planner about your celebration and receive recommendations from the live BookMyPlatter menu.',
-              child: Wrap(spacing: 12, runSpacing: 12, children: [
-                FilledButton.icon(onPressed: () => context.go('/planner'), icon: const Icon(Icons.auto_awesome), label: const Text('Start AI Catering Planner')),
-                OutlinedButton.icon(onPressed: () => context.go('/search'), icon: const Icon(Icons.tune), label: const Text('Search & filter packages')),
-              ]),
-            ),
-          ),
-          SliverToBoxAdapter(child: _PackageSection(title: 'Popular packages', packages: packages, onRetry: () => ref.invalidate(packagesProvider(const PackageQuery())))),
+          SliverToBoxAdapter(child: _SearchPanel()),
+          SliverToBoxAdapter(child: _CategorySection(categories: categories, onRetry: () => ref.invalidate(categoriesProvider))),
+          SliverToBoxAdapter(child: _CollectionStrip(title: 'Limited & festival offers', items: offers, onRetry: () => ref.invalidate(marketplaceCollectionProvider('limited_offers')))),
+          SliverToBoxAdapter(child: _PackageSection(title: 'Trending packages', packages: packages, onRetry: () => ref.invalidate(packagesProvider(const PackageQuery())))),
+          SliverToBoxAdapter(child: _PackageSection(title: 'Veg catering packages', packages: vegPackages, onRetry: () => ref.invalidate(packagesProvider(const PackageQuery(packageType: 'veg'))))),
+          SliverToBoxAdapter(child: _PackageSection(title: 'Non-veg catering packages', packages: nonVegPackages, onRetry: () => ref.invalidate(packagesProvider(const PackageQuery(packageType: 'non_veg'))))),
+          SliverToBoxAdapter(child: _PackageSection(title: 'Platter boxes', packages: platterBoxes, onRetry: () => ref.invalidate(packagesProvider(const PackageQuery(packageType: 'platter_box'))))),
+          SliverToBoxAdapter(child: _PackageSection(title: 'Corporate catering', packages: corporatePackages, onRetry: () => ref.invalidate(packagesProvider(const PackageQuery(eventType: 'corporate'))))),
+          SliverToBoxAdapter(child: _PackageSection(title: 'Wedding catering', packages: weddingPackages, onRetry: () => ref.invalidate(packagesProvider(const PackageQuery(eventType: 'wedding'))))),
+          const SliverToBoxAdapter(child: _WhyBookMyPlatter()),
+          SliverToBoxAdapter(child: _TestimonialsSection(reviews: reviews, onRetry: () => ref.invalidate(websiteReviewsProvider))),
+          SliverToBoxAdapter(child: _CitiesSection(cities: cities, onRetry: () => ref.invalidate(websiteCitiesProvider))),
+          SliverToBoxAdapter(child: _FaqSection(faqs: faqs, onRetry: () => ref.invalidate(websiteFaqsProvider))),
+          SliverToBoxAdapter(child: _BlogSection(posts: blogs, onRetry: () => ref.invalidate(websiteBlogPostsProvider))),
           const SliverToBoxAdapter(child: SizedBox(height: 40)),
         ]),
       ),
@@ -271,4 +411,378 @@ class _EmptyPanel extends StatelessWidget {
   final String message;
   @override
   Widget build(BuildContext context) => Card(child: Padding(padding: const EdgeInsets.all(28), child: Row(children: [const Icon(Icons.info_outline), const SizedBox(width: 12), Expanded(child: Text(message))])));
+}
+
+class _SearchPanel extends StatefulWidget {
+  @override
+  State<_SearchPanel> createState() => _SearchPanelState();
+}
+
+class _SearchPanelState extends State<_SearchPanel> {
+  final controller = TextEditingController();
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => _Section(
+        title: 'Find catering for any celebration',
+        subtitle: 'Search packages, cuisines, cities or event types across live BookMyPlatter inventory.',
+        child: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: controller,
+                decoration: const InputDecoration(
+                  prefixIcon: Icon(Icons.search),
+                  labelText: 'Search wedding, corporate, platter boxes...',
+                  border: OutlineInputBorder(),
+                ),
+                onSubmitted: _search,
+              ),
+            ),
+            const SizedBox(width: 12),
+            FilledButton.icon(
+              onPressed: () => _search(controller.text),
+              icon: const Icon(Icons.arrow_forward),
+              label: const Text('Search'),
+            ),
+          ],
+        ),
+      );
+
+  void _search(String value) {
+    final query = value.trim();
+    if (query.isEmpty) return;
+    context.go('/search?q=${Uri.encodeQueryComponent(query)}');
+  }
+}
+
+class _CategorySection extends StatelessWidget {
+  const _CategorySection({required this.categories, required this.onRetry});
+  final AsyncValue<List<Category>> categories;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) => _Section(
+        title: 'Explore categories',
+        subtitle: 'Browse live categories managed from the shared Supabase catalog.',
+        child: categories.when(
+          loading: () => const LinearProgressIndicator(),
+          error: (error, _) => _ErrorPanel(message: 'Categories could not be loaded', onRetry: onRetry),
+          data: (items) => items.isEmpty
+              ? const _EmptyPanel(message: 'No categories are published yet.')
+              : Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    for (final item in items)
+                      ActionChip(
+                        avatar: Text(item.icon),
+                        label: Text(item.name),
+                        onPressed: () => context.go('/search?category=${item.id}'),
+                      ),
+                  ],
+                ),
+        ),
+      );
+}
+
+class _CollectionStrip extends StatelessWidget {
+  const _CollectionStrip({required this.title, required this.items, required this.onRetry});
+  final String title;
+  final AsyncValue<List<MarketplaceContentItem>> items;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) => _Section(
+        title: title,
+        subtitle: 'Campaigns, offers and landing blocks are controlled by the admin CMS.',
+        child: items.when(
+          loading: () => const LinearProgressIndicator(),
+          error: (error, _) => _ErrorPanel(message: 'Offers could not be loaded', onRetry: onRetry),
+          data: (rows) => rows.isEmpty
+              ? const _EmptyPanel(message: 'No active offers are published right now.')
+              : SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      for (final item in rows)
+                        SizedBox(
+                          width: 280,
+                          child: Card(
+                            child: ListTile(
+                              leading: Text(item.icon, style: const TextStyle(fontSize: 28)),
+                              title: Text(item.title),
+                              subtitle: Text(item.subtitle),
+                              onTap: () => context.go(item.route ?? '/search?q=${Uri.encodeQueryComponent(item.searchQuery ?? item.title)}'),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+        ),
+      );
+}
+
+class _WhyBookMyPlatter extends StatelessWidget {
+  const _WhyBookMyPlatter();
+
+  @override
+  Widget build(BuildContext context) => _Section(
+        title: 'Why BookMyPlatter',
+        subtitle: 'A synchronized marketplace, CRM and operations backend built for Indian catering bookings.',
+        child: Wrap(
+          spacing: 14,
+          runSpacing: 14,
+          children: const [
+            _ValueCard(icon: Icons.verified, title: 'Verified caterers', text: 'Catalog, reviews and operations managed through Supabase.'),
+            _ValueCard(icon: Icons.currency_rupee, title: 'Transparent pricing', text: 'Per-guest pricing, menu customisation and checkout estimates.'),
+            _ValueCard(icon: Icons.sms_outlined, title: 'SMS + WhatsApp', text: 'Fast2SMS and WhatsApp templates keep customers updated.'),
+            _ValueCard(icon: Icons.timeline, title: 'Realtime tracking', text: 'Customer, admin and website data stay synchronized.'),
+          ],
+        ),
+      );
+}
+
+class _ValueCard extends StatelessWidget {
+  const _ValueCard({required this.icon, required this.title, required this.text});
+  final IconData icon;
+  final String title;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        width: 270,
+        child: Card(
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Icon(icon, color: Theme.of(context).colorScheme.primary),
+              const SizedBox(height: 12),
+              Text(title, style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 6),
+              Text(text),
+            ]),
+          ),
+        ),
+      );
+}
+
+class _TestimonialsSection extends StatelessWidget {
+  const _TestimonialsSection({required this.reviews, required this.onRetry});
+  final AsyncValue<List<WebsiteReview>> reviews;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) => _Section(
+        title: 'Google reviews & testimonials',
+        subtitle: 'Published customer trust signals from the website CMS.',
+        child: reviews.when(
+          loading: () => const LinearProgressIndicator(),
+          error: (error, _) => _ErrorPanel(message: 'Reviews could not be loaded', onRetry: onRetry),
+          data: (items) => items.isEmpty
+              ? const _EmptyPanel(message: 'No reviews are published yet.')
+              : Wrap(
+                  spacing: 14,
+                  runSpacing: 14,
+                  children: [
+                    for (final item in items)
+                      SizedBox(
+                        width: 360,
+                        child: Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(18),
+                            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Text('${item.rating.toStringAsFixed(1)} ★ • ${item.source}', style: Theme.of(context).textTheme.labelLarge),
+                              const SizedBox(height: 8),
+                              Text(item.reviewText),
+                              const SizedBox(height: 10),
+                              Text('${item.customerName}${item.city.isEmpty ? '' : ' • ${item.city}'}'),
+                            ]),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+        ),
+      );
+}
+
+class _CitiesSection extends StatelessWidget {
+  const _CitiesSection({required this.cities, required this.onRetry});
+  final AsyncValue<List<WebsiteCity>> cities;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) => _Section(
+        title: 'Cities we serve',
+        subtitle: 'Active service cities from the shared marketplace backend.',
+        child: cities.when(
+          loading: () => const LinearProgressIndicator(),
+          error: (error, _) => _ErrorPanel(message: 'Cities could not be loaded', onRetry: onRetry),
+          data: (items) => items.isEmpty
+              ? const _EmptyPanel(message: 'No cities are published yet.')
+              : Wrap(spacing: 10, runSpacing: 10, children: [for (final city in items) ActionChip(label: Text(city.name), onPressed: () => context.go('/search?q=${Uri.encodeQueryComponent(city.name)}'))]),
+        ),
+      );
+}
+
+class _FaqSection extends StatelessWidget {
+  const _FaqSection({required this.faqs, required this.onRetry});
+  final AsyncValue<List<WebsiteFaq>> faqs;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) => _Section(
+        title: 'Frequently asked questions',
+        subtitle: 'FAQ content is managed from Supabase and can be reused by admin, website and app.',
+        child: faqs.when(
+          loading: () => const LinearProgressIndicator(),
+          error: (error, _) => _ErrorPanel(message: 'FAQs could not be loaded', onRetry: onRetry),
+          data: (items) => items.isEmpty
+              ? const _EmptyPanel(message: 'No FAQs are published yet.')
+              : Column(children: [for (final item in items) Card(child: ExpansionTile(title: Text(item.question), subtitle: Text(item.category), children: [Padding(padding: const EdgeInsets.all(16), child: Align(alignment: Alignment.centerLeft, child: Text(item.answer)))]])),
+        ),
+      );
+}
+
+class _BlogSection extends StatelessWidget {
+  const _BlogSection({required this.posts, required this.onRetry});
+  final AsyncValue<List<WebsiteBlogPost>> posts;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) => _Section(
+        title: 'Catering guides & blogs',
+        subtitle: 'SEO-ready blog posts with categories, tags, schema and canonical metadata.',
+        child: posts.when(
+          loading: () => const LinearProgressIndicator(),
+          error: (error, _) => _ErrorPanel(message: 'Blogs could not be loaded', onRetry: onRetry),
+          data: (items) => items.isEmpty
+              ? const _EmptyPanel(message: 'No blogs are published yet.')
+              : Wrap(
+                  spacing: 16,
+                  runSpacing: 16,
+                  children: [
+                    for (final post in items)
+                      SizedBox(
+                        width: 360,
+                        child: Card(
+                          clipBehavior: Clip.antiAlias,
+                          child: InkWell(
+                            onTap: () => context.go('/blog/${post.slug}'),
+                            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              if (post.coverImageUrl != null) CachedNetworkImage(imageUrl: post.coverImageUrl!, height: 170, width: double.infinity, fit: BoxFit.cover),
+                              Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                  Text(post.category, style: Theme.of(context).textTheme.labelLarge),
+                                  const SizedBox(height: 6),
+                                  Text(post.title, style: Theme.of(context).textTheme.titleMedium),
+                                  const SizedBox(height: 6),
+                                  Text(post.excerpt, maxLines: 3, overflow: TextOverflow.ellipsis),
+                                ]),
+                              ),
+                            ]),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+        ),
+      );
+}
+
+class BlogDetailsPage extends ConsumerWidget {
+  const BlogDetailsPage({required this.slug, super.key});
+  final String slug;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final post = ref.watch(websiteBlogPostProvider(slug));
+    return post.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, _) => _Section(
+        title: 'Blog unavailable',
+        subtitle: 'The requested article could not be loaded.',
+        child: _ErrorPanel(message: error.toString(), onRetry: () => ref.invalidate(websiteBlogPostProvider(slug))),
+      ),
+      data: (item) => Title(
+        title: '${item.metaTitle ?? item.title} | BookMyPlatter',
+        color: const Color(0xFF3C1285),
+        child: SingleChildScrollView(
+          child: _Section(
+            title: item.title,
+            subtitle: item.metaDescription ?? item.excerpt,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (item.coverImageUrl != null)
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(24),
+                    child: CachedNetworkImage(imageUrl: item.coverImageUrl!, width: double.infinity, height: 360, fit: BoxFit.cover),
+                  ),
+                const SizedBox(height: 20),
+                Wrap(spacing: 8, children: [for (final tag in item.tags) Chip(label: Text(tag))]),
+                const SizedBox(height: 20),
+                SelectableText(item.content, style: Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.7)),
+                const SizedBox(height: 24),
+                FilledButton.icon(onPressed: () => context.go('/search'), icon: const Icon(Icons.search), label: const Text('Browse catering packages')),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class RobotsPage extends StatelessWidget {
+  const RobotsPage({super.key});
+
+  @override
+  Widget build(BuildContext context) => const ColoredBox(
+        color: Colors.white,
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: SelectableText('User-agent: *\nAllow: /\nSitemap: /sitemap.xml'),
+        ),
+      );
+}
+
+class SitemapPage extends ConsumerWidget {
+  const SitemapPage({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final posts = ref.watch(websiteBlogPostsProvider).valueOrNull ?? const <WebsiteBlogPost>[];
+    final urls = [
+      '/',
+      '/packages/veg',
+      '/packages/non-veg',
+      '/packages/platter-box',
+      '/packages/catering-combos',
+      '/about',
+      '/privacy',
+      '/terms',
+      for (final post in posts) '/blog/${post.slug}',
+    ];
+    final xml = StringBuffer('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n');
+    for (final url in urls) {
+      xml.writeln('  <url><loc>$url</loc></url>');
+    }
+    xml.write('</urlset>');
+    return ColoredBox(
+      color: Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: SelectableText(xml.toString()),
+      ),
+    );
+  }
 }

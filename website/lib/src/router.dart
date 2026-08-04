@@ -31,6 +31,7 @@ final websiteRouter = GoRouter(
         GoRoute(path: '/about', builder: (_, __) => const ContentPage(kind: ContentKind.about)),
         GoRoute(path: '/privacy', builder: (_, __) => const ContentPage(kind: ContentKind.privacy)),
         GoRoute(path: '/terms', builder: (_, __) => const ContentPage(kind: ContentKind.terms)),
+        GoRoute(path: '/blog/:slug', builder: (_, state) => BlogDetailsPage(slug: state.pathParameters['slug']!)),
       ],
     ),
     GoRoute(path: '/planner', builder: (_, __) => const CateringAssistantScreen()),
@@ -51,5 +52,7 @@ final websiteRouter = GoRouter(
     GoRoute(path: '/contact', builder: (_, __) => const SupportScreen()),
     GoRoute(path: '/support', builder: (_, __) => const SupportScreen()),
     GoRoute(path: '/faq', builder: (_, __) => const SupportScreen()),
+    GoRoute(path: '/robots.txt', builder: (_, __) => const RobotsPage()),
+    GoRoute(path: '/sitemap.xml', builder: (_, __) => const SitemapPage()),
   ],
 );
