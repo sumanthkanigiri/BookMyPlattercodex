@@ -1,0 +1,10 @@
+{
+  "name": "BookMyPlatter",
+  "short_name": "BookMyPlatter",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#3C1285",
+  "description": "Premium catering packages and event booking from BookMyPlatter",
+  "orientation": "portrait-primary"
+}

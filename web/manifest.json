@@ -1,0 +1,9 @@
+{
+  "name": "BookMyPlatter",
+  "short_name": "BookMyPlatter",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#3C1285",
+  "description": "Book catering and track events with BookMyPlatter"
+}
