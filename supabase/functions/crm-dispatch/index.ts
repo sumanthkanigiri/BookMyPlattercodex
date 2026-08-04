@@ -1,6 +1,18 @@
 import { createClient } from '@supabase/supabase-js';
 
 type Channel = 'sms' | 'whatsapp';
+type NotificationTemplate = {
+  template_key: string;
+  channel: Channel;
+  sms_message_id: string;
+  sms_sender_id: string;
+  sms_entity_id: string;
+  whatsapp_template_name: string;
+  whatsapp_template_id: string;
+  whatsapp_sender: string;
+  enabled: boolean;
+};
+
 type Followup = {
   id: string;
   lead_id: string;
@@ -44,33 +56,31 @@ const renderMessage = (followup: Followup) => {
   return `Thanks ${name} for contacting BookMyPlatter. Our catering specialist will help with your ${event}${guests}.`;
 };
 
-const sendSms = async (phone: string, message: string, templateKey: string) => {
+const sendSms = async (phone: string, message: string, template: NotificationTemplate) => {
   const key = Deno.env.get('FAST2SMS_API_KEY');
-  const sender = Deno.env.get('FAST2SMS_SENDER_ID');
-  const templateId = Deno.env.get(`DLT_${templateKey.toUpperCase()}`) ?? Deno.env.get('FAST2SMS_DEFAULT_DLT_ID') ?? '';
-  if (!key || !sender || !templateId) throw new Error('Fast2SMS environment is incomplete');
+  const sender = template.sms_sender_id || Deno.env.get('FAST2SMS_SENDER_ID');
+  const templateId = template.sms_message_id;
+  if (!key || !sender || !templateId) throw new Error('Fast2SMS SMS environment or template is incomplete');
   const response = await fetch('https://www.fast2sms.com/dev/bulkV2', {
     method: 'POST',
     headers: { authorization: key, 'content-type': 'application/json' },
-    body: JSON.stringify({ route: 'dlt', sender_id: sender, message, template_id: templateId, language: 'english', numbers: phone }),
+    body: JSON.stringify({ route: 'dlt', sender_id: sender, message, template_id: templateId, entity_id: template.sms_entity_id, language: 'english', numbers: phone }),
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(`Fast2SMS rejected request (${response.status})`);
   return { templateId, payload };
 };
 
-const sendWhatsApp = async (phone: string, message: string, templateKey: string) => {
-  const token = Deno.env.get('WHATSAPP_ACCESS_TOKEN');
-  const phoneNumberId = Deno.env.get('WHATSAPP_PHONE_NUMBER_ID');
-  const templateId = Deno.env.get(`WHATSAPP_${templateKey.toUpperCase()}`) ?? '';
-  if (!token || !phoneNumberId) throw new Error('WhatsApp environment is incomplete');
-  const body = templateId
-    ? { messaging_product: 'whatsapp', to: phone, type: 'template', template: { name: templateId, language: { code: 'en' } } }
-    : { messaging_product: 'whatsapp', to: phone, type: 'text', text: { body: message } };
-  const response = await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/messages`, {
+const sendWhatsApp = async (phone: string, message: string, template: NotificationTemplate) => {
+  const apiUrl = Deno.env.get('FAST2SMS_WHATSAPP_API_URL') ?? Deno.env.get('WHATSAPP_API_URL');
+  const key = Deno.env.get('FAST2SMS_WHATSAPP_API_KEY') ?? Deno.env.get('WHATSAPP_ACCESS_TOKEN');
+  const templateName = template.whatsapp_template_name;
+  const templateId = template.whatsapp_template_id;
+  if (!apiUrl || !key || !templateName || !templateId) throw new Error('WhatsApp environment or template is incomplete');
+  const response = await fetch(apiUrl, {
     method: 'POST',
-    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-    body: JSON.stringify(body),
+    headers: { authorization: key, 'content-type': 'application/json' },
+    body: JSON.stringify({ to: phone, sender: template.whatsapp_sender, template_name: templateName, template_id: templateId, message }),
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(`WhatsApp rejected request (${response.status})`);
@@ -102,6 +112,25 @@ Deno.serve(async (req) => {
     const lead = followup.leads;
     const recipient = followup.channel === 'sms' ? lead?.mobile : lead?.whatsapp_number || lead?.mobile;
     const message = renderMessage(followup);
+    const { data: template, error: templateError } = await supabase
+      .from('notification_templates')
+      .select('template_key,channel,sms_message_id,sms_sender_id,sms_entity_id,whatsapp_template_name,whatsapp_template_id,whatsapp_sender,enabled')
+      .eq('template_key', followup.template_key)
+      .eq('channel', followup.channel)
+      .eq('enabled', true)
+      .maybeSingle();
+    if (templateError) {
+      await supabase.from('followups').update({ last_error: templateError.message }).eq('id', followup.id);
+      results.push({ id: followup.id, status: 'failed', error: templateError.message });
+      continue;
+    }
+    if (!template) {
+      const error = `No enabled ${followup.channel} template for ${followup.template_key}`;
+      await supabase.from('followups').update({ status: 'failed', last_error: error }).eq('id', followup.id);
+      results.push({ id: followup.id, status: 'failed', error });
+      continue;
+    }
+    const notificationTemplate = template as NotificationTemplate;
     const log = {
       lead_id: followup.lead_id,
       customer_id: lead?.customer_id,
@@ -113,8 +142,8 @@ Deno.serve(async (req) => {
     try {
       if (!recipient) throw new Error('Lead has no recipient phone number');
       const provider = followup.channel === 'sms'
-        ? await sendSms(recipient, message, followup.template_key)
-        : await sendWhatsApp(recipient, message, followup.template_key);
+        ? await sendSms(recipient, message, notificationTemplate)
+        : await sendWhatsApp(recipient, message, notificationTemplate);
       const { data: communication } = await supabase.from('communication_logs').insert({ ...log, template_id: provider.templateId, status: 'sent', sent_at: new Date().toISOString(), metadata: provider.payload }).select('id').single();
       if (communication?.id && followup.channel === 'sms') await supabase.from('sms_logs').insert({ id: communication.id, dlt_template_id: provider.templateId, fast2sms_response: provider.payload });
       if (communication?.id && followup.channel === 'whatsapp') await supabase.from('whatsapp_logs').insert({ id: communication.id, whatsapp_template_id: provider.templateId, provider_response: provider.payload });

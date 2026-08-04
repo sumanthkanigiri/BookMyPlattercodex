@@ -2,6 +2,38 @@ import 'package:bookmyplatter_admin/src/core/admin_session.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+
+class NotificationTemplateConfig {
+  const NotificationTemplateConfig({
+    required this.templateKey,
+    required this.feature,
+    required this.channel,
+    required this.smsMessageId,
+    required this.whatsappTemplateName,
+    required this.whatsappTemplateId,
+    required this.enabled,
+  });
+
+  factory NotificationTemplateConfig.fromMap(Map<String, dynamic> map) =>
+      NotificationTemplateConfig(
+        templateKey: map['template_key'] as String,
+        feature: map['feature'] as String,
+        channel: map['channel'] as String,
+        smsMessageId: map['sms_message_id'] as String? ?? '',
+        whatsappTemplateName: map['whatsapp_template_name'] as String? ?? '',
+        whatsappTemplateId: map['whatsapp_template_id'] as String? ?? '',
+        enabled: map['enabled'] as bool? ?? true,
+      );
+
+  final String templateKey;
+  final String feature;
+  final String channel;
+  final String smsMessageId;
+  final String whatsappTemplateName;
+  final String whatsappTemplateId;
+  final bool enabled;
+}
+
 class CrmMetrics {
   const CrmMetrics({
     required this.todayLeads,
@@ -128,4 +160,37 @@ final crmLeadsProvider = FutureProvider<List<CrmLead>>((ref) async {
 final crmLeadEventsProvider = StreamProvider<List<Map<String, dynamic>>>((ref) {
   final client = ref.watch(supabaseProvider);
   return client.from('leads').stream(primaryKey: ['id']);
+});
+
+
+final notificationTemplateRepositoryProvider = Provider<NotificationTemplateRepository>((ref) {
+  return NotificationTemplateRepository(ref.watch(supabaseProvider));
+});
+
+class NotificationTemplateRepository {
+  const NotificationTemplateRepository(this._client);
+  final SupabaseClient _client;
+
+  Future<void> setEnabled({
+    required String templateKey,
+    required String channel,
+    required bool enabled,
+  }) async {
+    await _client
+        .from('notification_templates')
+        .update({'enabled': enabled})
+        .eq('template_key', templateKey)
+        .eq('channel', channel);
+  }
+}
+
+final notificationTemplatesProvider =
+    FutureProvider<List<NotificationTemplateConfig>>((ref) async {
+  final client = ref.watch(supabaseProvider);
+  final rows = await client
+      .from('notification_templates')
+      .select('template_key,feature,channel,sms_message_id,whatsapp_template_name,whatsapp_template_id,enabled')
+      .order('feature')
+      .order('channel');
+  return [for (final row in rows) NotificationTemplateConfig.fromMap(row)];
 });

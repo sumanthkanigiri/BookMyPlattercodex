@@ -15,6 +15,7 @@ class CrmScreen extends ConsumerWidget {
     });
     final metrics = ref.watch(crmMetricsProvider);
     final leads = ref.watch(crmLeadsProvider);
+    final templates = ref.watch(notificationTemplatesProvider);
     return Scaffold(
       body: RefreshIndicator(
         onRefresh: () async {
@@ -53,6 +54,16 @@ class CrmScreen extends ConsumerWidget {
               data: (items) => items.isEmpty
                   ? const Card(child: ListTile(leading: Icon(Icons.inbox_outlined), title: Text('No leads yet')))
                   : Column(children: [for (final lead in items) _LeadTile(lead: lead)]),
+            ),
+            const SizedBox(height: 24),
+            Text('Notification Templates', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 8),
+            templates.when(
+              loading: () => const LinearProgressIndicator(),
+              error: (error, _) => _Failure(message: error.toString(), onRetry: () => ref.invalidate(notificationTemplatesProvider)),
+              data: (items) => items.isEmpty
+                  ? const Card(child: ListTile(leading: Icon(Icons.sms_outlined), title: Text('No notification templates configured')))
+                  : Column(children: [for (final item in items) _TemplateTile(item: item, ref: ref)]),
             ),
           ],
         ),
@@ -136,4 +147,36 @@ class _Failure extends StatelessWidget {
           trailing: IconButton(onPressed: onRetry, icon: const Icon(Icons.refresh)),
         ),
       );
+}
+
+
+class _TemplateTile extends StatelessWidget {
+  const _TemplateTile({required this.item, required this.ref});
+  final NotificationTemplateConfig item;
+  final WidgetRef ref;
+
+  @override
+  Widget build(BuildContext context) {
+    final template = item.channel == 'sms'
+        ? 'Message ID ${item.smsMessageId}'
+        : '${item.whatsappTemplateName} • ${item.whatsappTemplateId}';
+    return Card(
+      child: ListTile(
+        leading: Icon(item.channel == 'sms' ? Icons.sms_outlined : Icons.chat_outlined),
+        title: Text(item.feature),
+        subtitle: Text('${item.templateKey} • $template'),
+        trailing: Switch(
+          value: item.enabled,
+          onChanged: (enabled) async {
+            await ref.read(notificationTemplateRepositoryProvider).setEnabled(
+                  templateKey: item.templateKey,
+                  channel: item.channel,
+                  enabled: enabled,
+                );
+            ref.invalidate(notificationTemplatesProvider);
+          },
+        ),
+      ),
+    );
+  }
 }
