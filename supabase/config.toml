@@ -1,0 +1,40 @@
+project_id = "bookmyplatter"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[auth]
+enabled = true
+site_url = "app.bookmyplatter://auth-callback"
+additional_redirect_urls = ["http://localhost:3000", "http://localhost:8080"]
+jwt_expiry = 3600
+enable_signup = true
+
+[storage]
+enabled = true
+file_size_limit = "10MiB"
+
+[functions.create-payment-intent]
+verify_jwt = true
+
+[functions.verify-payment]
+verify_jwt = true
+
+[functions.payment-failed]
+verify_jwt = true
+
+[functions.validate-coupon]
+verify_jwt = true
+
+[functions.order-transition]
+verify_jwt = true
+
+[functions.send-notification]
+verify_jwt = true
+
+[functions.admin-dashboard]
+verify_jwt = true
