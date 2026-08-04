@@ -247,3 +247,87 @@ final enterpriseRealtimeProvider = StreamProvider<void>((ref) {
       .stream(primaryKey: ['id'])
       .map((_) => null);
 });
+
+class EnterpriseModuleHealth {
+  const EnterpriseModuleHealth({required this.module, required this.primaryCount, required this.alertCount, required this.description});
+  final String module;
+  final int primaryCount;
+  final int alertCount;
+  final String description;
+}
+
+class EnterpriseAiInsightSummary {
+  const EnterpriseAiInsightSummary({required this.title, required this.insightType, required this.status, required this.confidence, required this.createdAt});
+
+  factory EnterpriseAiInsightSummary.fromMap(Map<String, dynamic> map) => EnterpriseAiInsightSummary(
+        title: map['title'] as String? ?? 'Insight',
+        insightType: map['insight_type'] as String? ?? 'business_report',
+        status: map['status'] as String? ?? 'open',
+        confidence: (map['confidence'] as num?)?.toDouble(),
+        createdAt: DateTime.parse(map['created_at'] as String).toLocal(),
+      );
+
+  final String title;
+  final String insightType;
+  final String status;
+  final double? confidence;
+  final DateTime createdAt;
+}
+
+class AutomationJobSummary {
+  const AutomationJobSummary({required this.jobKey, required this.jobType, required this.status, required this.nextRunAt});
+
+  factory AutomationJobSummary.fromMap(Map<String, dynamic> map) => AutomationJobSummary(
+        jobKey: map['job_key'] as String? ?? 'job',
+        jobType: map['job_type'] as String? ?? 'daily_report',
+        status: map['status'] as String? ?? 'scheduled',
+        nextRunAt: map['next_run_at'] == null ? null : DateTime.parse(map['next_run_at'] as String).toLocal(),
+      );
+
+  final String jobKey;
+  final String jobType;
+  final String status;
+  final DateTime? nextRunAt;
+}
+
+final enterpriseModuleHealthProvider = FutureProvider<List<EnterpriseModuleHealth>>((ref) async {
+  final client = ref.watch(supabaseProvider);
+  final materials = await client.from('raw_materials').select('current_stock,minimum_stock,expiry_date').eq('is_active', true).limit(1000);
+  final expiryCutoff = DateTime.now().add(const Duration(days: 7));
+  final lowStockCount = materials.where((row) => ((row['current_stock'] as num?)?.toDouble() ?? 0) <= ((row['minimum_stock'] as num?)?.toDouble() ?? 0)).length;
+  final expiringCount = materials.where((row) {
+    final expiry = row['expiry_date'] as String?;
+    return expiry != null && DateTime.parse(expiry).isBefore(expiryCutoff.add(const Duration(days: 1)));
+  }).length;
+  final purchaseApprovals = await client.from('purchase_requests').select('id').eq('status', 'requested').count(CountOption.exact);
+  final openInvoices = await client.from('finance_invoices').select('id').inFilter('status', ['pending', 'failed']).count(CountOption.exact);
+  final deliveryTrips = await client.from('delivery_trips').select('id').inFilter('status', ['assigned', 'en_route', 'arrived']).count(CountOption.exact);
+  final supportTickets = await client.from('support_tickets').select('id').inFilter('status', ['open', 'in_progress', 'waiting_for_customer']).count(CountOption.exact);
+  final leaveRequests = await client.from('staff_leave_requests').select('id').eq('status', 'requested').count(CountOption.exact);
+  final aiInsights = await client.from('ai_insights').select('id').eq('status', 'open').count(CountOption.exact);
+  final automationFailures = await client.from('automation_jobs').select('id').eq('status', 'failed').count(CountOption.exact);
+  final walletTransactions = await client.from('wallet_transactions').select('id').gte('created_at', _todayStart.toUtc().toIso8601String()).count(CountOption.exact);
+  return [
+    EnterpriseModuleHealth(module: 'Kitchen ERP', primaryCount: (await client.from('kitchen_queue').select('id').not('status', 'in', '(completed,dispatched)').count(CountOption.exact)).count, alertCount: 0, description: 'Cooking, packing and dispatch queue'),
+    EnterpriseModuleHealth(module: 'Inventory', primaryCount: lowStockCount, alertCount: expiringCount, description: 'Low stock and expiry alerts'),
+    EnterpriseModuleHealth(module: 'Purchase', primaryCount: purchaseApprovals.count, alertCount: purchaseApprovals.count, description: 'Purchase requests awaiting approval'),
+    EnterpriseModuleHealth(module: 'Finance', primaryCount: openInvoices.count, alertCount: openInvoices.count, description: 'Pending invoices and payment exceptions'),
+    EnterpriseModuleHealth(module: 'Delivery', primaryCount: deliveryTrips.count, alertCount: 0, description: 'Active trips with ETA and OTP delivery'),
+    EnterpriseModuleHealth(module: 'Staff ERP', primaryCount: leaveRequests.count, alertCount: leaveRequests.count, description: 'Leave, attendance and task approvals'),
+    EnterpriseModuleHealth(module: 'Customer Support', primaryCount: supportTickets.count, alertCount: supportTickets.count, description: 'Open tickets, complaints and refunds'),
+    EnterpriseModuleHealth(module: 'Loyalty', primaryCount: walletTransactions.count, alertCount: 0, description: 'Wallet, rewards and referral activity today'),
+    EnterpriseModuleHealth(module: 'AI & BI', primaryCount: aiInsights.count, alertCount: automationFailures.count, description: 'Open AI insights and automation failures'),
+  ];
+});
+
+final aiInsightsProvider = FutureProvider<List<EnterpriseAiInsightSummary>>((ref) async {
+  final client = ref.watch(supabaseProvider);
+  final rows = await client.from('ai_insights').select('title,insight_type,status,confidence,created_at').order('created_at', ascending: false).limit(10);
+  return [for (final row in rows) EnterpriseAiInsightSummary.fromMap(row)];
+});
+
+final automationJobsProvider = FutureProvider<List<AutomationJobSummary>>((ref) async {
+  final client = ref.watch(supabaseProvider);
+  final rows = await client.from('automation_jobs').select('job_key,job_type,status,next_run_at').order('next_run_at').limit(10);
+  return [for (final row in rows) AutomationJobSummary.fromMap(row)];
+});

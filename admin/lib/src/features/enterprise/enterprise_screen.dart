@@ -22,6 +22,9 @@ class EnterpriseScreen extends ConsumerWidget {
     final finance = ref.watch(enterpriseFinanceProvider);
     final cms = ref.watch(enterpriseCmsProvider);
     final marketing = ref.watch(enterpriseMarketingProvider);
+    final moduleHealth = ref.watch(enterpriseModuleHealthProvider);
+    final aiInsights = ref.watch(aiInsightsProvider);
+    final automationJobs = ref.watch(automationJobsProvider);
 
     return RefreshIndicator(
       onRefresh: () async {
@@ -32,6 +35,9 @@ class EnterpriseScreen extends ConsumerWidget {
         ref.invalidate(enterpriseFinanceProvider);
         ref.invalidate(enterpriseCmsProvider);
         ref.invalidate(enterpriseMarketingProvider);
+        ref.invalidate(enterpriseModuleHealthProvider);
+        ref.invalidate(aiInsightsProvider);
+        ref.invalidate(automationJobsProvider);
       },
       child: ListView(
         padding: const EdgeInsets.all(24),
@@ -99,6 +105,27 @@ class EnterpriseScreen extends ConsumerWidget {
                   value: marketing,
                   onRetry: () => ref.invalidate(enterpriseMarketingProvider),
                   builder: (summary) => _MarketingSummaryView(summary: summary),
+                ),
+                _AsyncPanel<List<EnterpriseModuleHealth>>(
+                  title: 'Enterprise module health',
+                  icon: Icons.monitor_heart_outlined,
+                  value: moduleHealth,
+                  onRetry: () => ref.invalidate(enterpriseModuleHealthProvider),
+                  builder: (items) => _ModuleHealthView(items: items),
+                ),
+                _AsyncPanel<List<EnterpriseAiInsightSummary>>(
+                  title: 'AI insights',
+                  icon: Icons.auto_awesome_outlined,
+                  value: aiInsights,
+                  onRetry: () => ref.invalidate(aiInsightsProvider),
+                  builder: (items) => _AiInsightView(items: items),
+                ),
+                _AsyncPanel<List<AutomationJobSummary>>(
+                  title: 'Automation monitoring',
+                  icon: Icons.settings_suggest_outlined,
+                  value: automationJobs,
+                  onRetry: () => ref.invalidate(automationJobsProvider),
+                  builder: (items) => _AutomationJobsView(items: items),
                 ),
                 const _StaticCapabilityPanel(
                   title: 'Security & audit',
@@ -394,4 +421,67 @@ class _ErrorCard extends StatelessWidget {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer, fontWeight: FontWeight.w800)), const SizedBox(height: 8), Text(message, maxLines: 4, overflow: TextOverflow.ellipsis), const SizedBox(height: 12), OutlinedButton.icon(onPressed: onRetry, icon: const Icon(Icons.refresh), label: const Text('Retry'))]),
         ),
       );
+}
+
+
+class _ModuleHealthView extends StatelessWidget {
+  const _ModuleHealthView({required this.items});
+  final List<EnterpriseModuleHealth> items;
+
+  @override
+  Widget build(BuildContext context) {
+    if (items.isEmpty) return const _EmptyState(message: 'Enterprise module metrics will appear when Supabase records are available.');
+    return Column(children: [
+      for (final item in items)
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: CircleAvatar(child: Text(item.primaryCount.toString())),
+          title: Text(item.module),
+          subtitle: Text(item.description),
+          trailing: item.alertCount == 0 ? const Icon(Icons.check_circle_outline) : Badge(label: Text(item.alertCount.toString()), child: const Icon(Icons.warning_amber_outlined)),
+        ),
+    ]);
+  }
+}
+
+class _AiInsightView extends StatelessWidget {
+  const _AiInsightView({required this.items});
+  final List<EnterpriseAiInsightSummary> items;
+
+  @override
+  Widget build(BuildContext context) {
+    if (items.isEmpty) return const _EmptyState(message: 'No open AI insights. Forecasting, pricing and segmentation insights will sync here.');
+    final format = DateFormat('d MMM, h:mm a');
+    return Column(children: [
+      for (final item in items)
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.auto_graph_outlined),
+          title: Text(item.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+          subtitle: Text('${item.insightType.replaceAll('_', ' ')} • ${item.status} • ${format.format(item.createdAt)}'),
+          trailing: Text(item.confidence == null ? 'n/a' : '${item.confidence!.toStringAsFixed(0)}%'),
+        ),
+    ]);
+  }
+}
+
+class _AutomationJobsView extends StatelessWidget {
+  const _AutomationJobsView({required this.items});
+  final List<AutomationJobSummary> items;
+
+  @override
+  Widget build(BuildContext context) {
+    if (items.isEmpty) return const _EmptyState(message: 'No automation jobs configured. Daily, weekly, monthly, backup and monitoring jobs will sync here.');
+    final format = DateFormat('d MMM, h:mm a');
+    return Column(children: [
+      for (final item in items)
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: Icon(item.status == 'failed' ? Icons.error_outline : Icons.schedule_outlined),
+          title: Text(item.jobKey),
+          subtitle: Text(item.jobType.replaceAll('_', ' ')),
+          trailing: Text(item.nextRunAt == null ? item.status : format.format(item.nextRunAt!)),
+        ),
+    ]);
+  }
 }
