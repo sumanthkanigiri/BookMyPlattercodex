@@ -253,3 +253,150 @@ final notificationTemplatesProvider =
       .order('channel');
   return [for (final row in rows) NotificationTemplateConfig.fromMap(row)];
 });
+
+class CrmFunnelStage {
+  const CrmFunnelStage({required this.status, required this.count, required this.expectedRevenue});
+  final String status;
+  final int count;
+  final double expectedRevenue;
+}
+
+class CommunicationLogEntry {
+  const CommunicationLogEntry({required this.id, required this.channel, required this.recipient, required this.status, required this.templateKey, required this.createdAt, required this.readAt});
+
+  factory CommunicationLogEntry.fromMap(Map<String, dynamic> map) => CommunicationLogEntry(
+        id: map['id'] as String,
+        channel: map['channel'] as String? ?? 'sms',
+        recipient: map['recipient'] as String? ?? '',
+        status: map['status'] as String? ?? 'queued',
+        templateKey: map['template_key'] as String? ?? '',
+        createdAt: DateTime.parse(map['created_at'] as String).toLocal(),
+        readAt: map['read_at'] == null ? null : DateTime.parse(map['read_at'] as String).toLocal(),
+      );
+
+  final String id;
+  final String channel;
+  final String recipient;
+  final String status;
+  final String templateKey;
+  final DateTime createdAt;
+  final DateTime? readAt;
+}
+
+class CrmCampaignSnapshot {
+  const CrmCampaignSnapshot({required this.name, required this.channel, required this.status, required this.sent, required this.delivered, required this.failed});
+
+  factory CrmCampaignSnapshot.fromMap(Map<String, dynamic> map) => CrmCampaignSnapshot(
+        name: map['name'] as String? ?? 'Campaign',
+        channel: map['channel'] as String? ?? 'sms',
+        status: map['status'] as String? ?? 'draft',
+        sent: (map['sent_count'] as num?)?.toInt() ?? 0,
+        delivered: (map['delivered_count'] as num?)?.toInt() ?? 0,
+        failed: (map['failed_count'] as num?)?.toInt() ?? 0,
+      );
+
+  final String name;
+  final String channel;
+  final String status;
+  final int sent;
+  final int delivered;
+  final int failed;
+}
+
+class AiMarketingAssetSummary {
+  const AiMarketingAssetSummary({required this.title, required this.assetType, required this.status, required this.publishAt});
+
+  factory AiMarketingAssetSummary.fromMap(Map<String, dynamic> map) => AiMarketingAssetSummary(
+        title: map['title'] as String? ?? 'AI asset',
+        assetType: map['asset_type'] as String? ?? 'blog',
+        status: map['status'] as String? ?? 'draft',
+        publishAt: map['publish_at'] == null ? null : DateTime.parse(map['publish_at'] as String).toLocal(),
+      );
+
+  final String title;
+  final String assetType;
+  final String status;
+  final DateTime? publishAt;
+}
+
+class EnterpriseCrmAnalytics {
+  const EnterpriseCrmAnalytics({
+    required this.totalLeads,
+    required this.conversionRate,
+    required this.websiteVisits,
+    required this.appOpens,
+    required this.smsDeliveryRate,
+    required this.whatsappDeliveryRate,
+    required this.marketingRoi,
+  });
+
+  final int totalLeads;
+  final double conversionRate;
+  final int websiteVisits;
+  final int appOpens;
+  final double smsDeliveryRate;
+  final double whatsappDeliveryRate;
+  final double marketingRoi;
+}
+
+final crmFunnelProvider = FutureProvider<List<CrmFunnelStage>>((ref) async {
+  final client = ref.watch(supabaseProvider);
+  final rows = await client.from('leads').select('status,expected_revenue').limit(1000);
+  final counts = <String, int>{};
+  final revenue = <String, double>{};
+  for (final row in rows) {
+    final status = row['status'] as String? ?? 'new';
+    counts[status] = (counts[status] ?? 0) + 1;
+    revenue[status] = (revenue[status] ?? 0) + ((row['expected_revenue'] as num?)?.toDouble() ?? 0);
+  }
+  return [
+    for (final entry in counts.entries)
+      CrmFunnelStage(status: entry.key, count: entry.value, expectedRevenue: revenue[entry.key] ?? 0),
+  ]..sort((a, b) => b.count.compareTo(a.count));
+});
+
+final communicationLogsProvider = FutureProvider<List<CommunicationLogEntry>>((ref) async {
+  final client = ref.watch(supabaseProvider);
+  final rows = await client.from('communication_logs').select('id,channel,recipient,status,template_key,created_at,read_at').order('created_at', ascending: false).limit(50);
+  return [for (final row in rows) CommunicationLogEntry.fromMap(row)];
+});
+
+final crmCampaignsProvider = FutureProvider<List<CrmCampaignSnapshot>>((ref) async {
+  final client = ref.watch(supabaseProvider);
+  final rows = await client.from('marketing_campaigns').select('name,channel,status,sent_count,delivered_count,failed_count').order('scheduled_at', ascending: false).limit(30);
+  return [for (final row in rows) CrmCampaignSnapshot.fromMap(row)];
+});
+
+final aiMarketingAssetsProvider = FutureProvider<List<AiMarketingAssetSummary>>((ref) async {
+  final client = ref.watch(supabaseProvider);
+  final rows = await client.from('ai_marketing_assets').select('title,asset_type,status,publish_at').order('updated_at', ascending: false).limit(30);
+  return [for (final row in rows) AiMarketingAssetSummary.fromMap(row)];
+});
+
+final enterpriseCrmAnalyticsProvider = FutureProvider<EnterpriseCrmAnalytics>((ref) async {
+  final client = ref.watch(supabaseProvider);
+  final leads = await client.from('leads').select('status').limit(1000);
+  final activity = await client.from('customer_activity').select('activity_type').limit(1000);
+  final sms = await client.from('communication_logs').select('status').eq('channel', 'sms').limit(1000);
+  final whatsapp = await client.from('communication_logs').select('status').eq('channel', 'whatsapp').limit(1000);
+  final analytics = await client.from('crm_analytics_daily').select('revenue,ad_spend').limit(365);
+  final converted = leads.where((row) => const {'converted', 'won'}.contains(row['status'])).length;
+  final smsDelivered = sms.where((row) => const {'delivered', 'read'}.contains(row['status'])).length;
+  final whatsappDelivered = whatsapp.where((row) => const {'delivered', 'read'}.contains(row['status'])).length;
+  final revenue = analytics.fold<double>(0, (sum, row) => sum + ((row['revenue'] as num?)?.toDouble() ?? 0));
+  final adSpend = analytics.fold<double>(0, (sum, row) => sum + ((row['ad_spend'] as num?)?.toDouble() ?? 0));
+  return EnterpriseCrmAnalytics(
+    totalLeads: leads.length,
+    conversionRate: leads.isEmpty ? 0 : converted / leads.length,
+    websiteVisits: activity.where((row) => row['activity_type'] == 'website_visit').length,
+    appOpens: activity.where((row) => row['activity_type'] == 'app_open').length,
+    smsDeliveryRate: sms.isEmpty ? 0 : smsDelivered / sms.length,
+    whatsappDeliveryRate: whatsapp.isEmpty ? 0 : whatsappDelivered / whatsapp.length,
+    marketingRoi: adSpend == 0 ? 0 : (revenue - adSpend) / adSpend,
+  );
+});
+
+final communicationLogEventsProvider = StreamProvider<List<Map<String, dynamic>>>((ref) {
+  final client = ref.watch(supabaseProvider);
+  return client.from('communication_logs').stream(primaryKey: ['id']);
+});
