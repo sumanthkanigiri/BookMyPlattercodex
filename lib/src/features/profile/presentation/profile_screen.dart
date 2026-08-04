@@ -46,6 +46,13 @@ class ProfileScreen extends ConsumerWidget {
                 if (context.mounted) context.go('/login');
               },
             ),
+          ListTile(
+            leading: const Icon(Icons.event_available_outlined),
+            title: const Text('My events'),
+            subtitle: const Text('Save venues, dates, guest counts and instructions'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.go('/events'),
+          ),
           addresses.when(
             loading: () => const ListTile(
               leading: Icon(Icons.location_on),

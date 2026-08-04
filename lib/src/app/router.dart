@@ -6,6 +6,7 @@ import 'package:bookmyplatter/src/features/assistant/presentation/catering_assis
 import 'package:bookmyplatter/src/features/cart/presentation/cart_screen.dart';
 import 'package:bookmyplatter/src/features/checkout/presentation/checkout_screen.dart';
 import 'package:bookmyplatter/src/features/favorites/presentation/favorites_screen.dart';
+import 'package:bookmyplatter/src/features/events/presentation/customer_events_screen.dart';
 import 'package:bookmyplatter/src/features/home/presentation/home_screen.dart';
 import 'package:bookmyplatter/src/features/loyalty/presentation/loyalty_screen.dart';
 import 'package:bookmyplatter/src/features/orders/presentation/orders_screen.dart';
@@ -116,6 +117,7 @@ final appRouter = GoRouter(
       builder: (context, state) => const NotificationsScreen(),
     ),
     GoRoute(path: '/addresses', builder: (context, state) => const AddressesScreen()),
+    GoRoute(path: '/events', builder: (context, state) => const CustomerEventsScreen()),
     GoRoute(path: '/support', builder: (context, state) => const SupportScreen()),
     GoRoute(path: '/rewards', builder: (context, state) => const LoyaltyScreen()),
   ],

@@ -38,5 +38,17 @@ class AuthRepository {
     );
   }
 
+  Future<void> resetPassword(String email) {
+    return _client.auth.resetPasswordForEmail(email);
+  }
+
+  Future<void> changePassword(String password) {
+    return _client.auth.updateUser(UserAttributes(password: password));
+  }
+
   Future<void> signOut() => _client.auth.signOut();
+
+  Future<void> signOutEverywhere() {
+    return _client.auth.signOut(scope: SignOutScope.global);
+  }
 }

@@ -203,6 +203,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               label: const Text('Continue with email'),
             ),
             const SizedBox(height: 12),
+            TextButton(
+              onPressed: loading
+                  ? null
+                  : () => run(
+                        () => auth.resetPassword(emailController.text.trim()),
+                      ),
+              child: const Text('Forgot password? Send reset link'),
+            ),
             OutlinedButton.icon(
               onPressed: loading ? null : () => run(auth.signInWithGoogle),
               icon: const Icon(Icons.g_mobiledata),
